@@ -1,5 +1,5 @@
 {
-	"name": "caf",
+	"name": "async-caf",
 	"version": "1.0.0",
 	"description": "Wrapper for generators as cancelable async functions",
 	"main": "./dist/caf.js",

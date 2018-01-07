@@ -1,7 +1,7 @@
 # Cancelable Async Functions (CAF)
 
 [![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
-[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
+[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/async-caf)
 [![Dependencies](https://david-dm.org/getify/caf.svg)](https://david-dm.org/getify/caf)
 [![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf)
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
@@ -125,7 +125,7 @@ setTimeout( function(){
 ## Builds
 
 [![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
-[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
+[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/async-caf)
 
 The distribution library file (`dist/caf.js`) comes pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
 
