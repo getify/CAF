@@ -1,0 +1,36 @@
+{
+	"name": "caf",
+	"version": "1.0.0",
+	"description": "Wrapper for generators as cancelable async functions",
+	"main": "./dist/caf.js",
+	"scripts": {
+		"test": "node scripts/node-tests.js",
+		"test:dist": "TEST_DIST=true npm test",
+		"test:package": "TEST_PACKAGE=true npm test",
+		"test:all": "npm test && npm run test:dist && npm run test:package",
+		"coverage": "istanbul cover scripts/node-tests.js",
+		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
+		"build-core": "node scripts/build-core.js",
+		"build": "npm run build-core",
+		"prepare": "npm run build",
+		"prepublish": "npm run build && npm run test:all",
+		"publish": "npm run coverage:report"
+	},
+	"devDependencies": {
+		"coveralls": "~3.0.0",
+		"qunitjs": "~2.4.1"
+	},
+	"repository": "getify/caf",
+	"keywords": [
+		"fp",
+		"functional programming",
+		"async"
+	],
+	"bugs": {
+		"url": "https://github.com/getify/caf/issues",
+		"email": "getify@gmail.com"
+	},
+	"homepage": "https://github.com/getify/caf",
+	"author": "Kyle Simpson <getify@gmail.com>",
+	"license": "MIT"
+}
