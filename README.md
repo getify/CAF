@@ -122,6 +122,20 @@ setTimeout( function(){
 }, 10 );
 ```
 
+## npm Package
+
+Because of a naming conflict, this utility's `npm` package name is `async-caf`, not `caf`. So, to install it:
+
+```
+npm install async-caf
+```
+
+And to require it in a node script:
+
+```js
+var CAF = require("async-caf");
+```
+
 ## Builds
 
 [![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
