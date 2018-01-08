@@ -139,7 +139,7 @@ var CAF = require("async-caf");
 ## Builds
 
 [![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
-[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/async-caf)
+[![npm Module](https://badge.fury.io/js/async-caf.svg)](https://www.npmjs.org/package/async-caf)
 
 The distribution library file (`dist/caf.js`) comes pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
 
