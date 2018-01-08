@@ -21,7 +21,7 @@ var token = new CAF.cancelToken();
 
 // wrap a generator to make it look like a normal async
 // function that when called, returns a promise.
-var main = CAF( function *main(cancelToken,url){
+var main = CAF( function *main(signal,url){
     var resp = yield ajax( url );
 
     // want to be able to cancel so we never get here?!?
@@ -31,47 +31,47 @@ var main = CAF( function *main(cancelToken,url){
 
 // run the fake async function, listen to its
 // returned promise
-main( token, "http://some.tld/other" )
+main( token.signal, "http://some.tld/other" )
 .then( onResponse, onCancelOrError );
 
-// only wait 3 seconds for the request!
+// only wait 5 seconds for the request!
 setTimeout( function(){
-    token.cancel( "Request took too long!" );
-}, 3000 );
+    token.abort( "Request took too long!" );
+}, 5000 );
 ```
 
 Create a cancelation token (via `new CAF.cancelToken()`) to pass into your wrapped `function*` generator, and then if you cancel the token, the `function*` generator will abort itself immediately, even if it's presently waiting on a promise to resolve.
 
-Moreover, the generator itself is provided the cancelation token (`cancelToken` parameter above), so you can call another `function*` generator with **CAF**, and pass along the shared cancelation token. In this way, a single cancelation signal cascades across however many `function*` generators are currently in the execution chain:
+Moreover, the generator itself is provided the cancelation token's signal (`signal` parameter above), so you can call another `function*` generator with **CAF**, and pass along the shared cancelation token signal. In this way, a single cancelation signal cascades across however many `function*` generators are currently in the execution chain:
 
 ```js
 var token = new CAF.cancelToken();
 
-var one = CAF( function *one(cancelToken,v){
-    return yield two(cancelToken,v);
+var one = CAF( function *one(signal,v){
+    return yield two(signal,v);
 } );
 
-var two = CAF( function *two(cancelToken,v){
-    return yield three(cancelToken,v);
+var two = CAF( function *two(signal,v){
+    return yield three(signal,v);
 } );
 
-var three = CAF( function* three(cancelToken,v){
+var three = CAF( function* three(signal,v){
     return yield ajax( `http://some.tld/?v=${v}` );
 } );
 
-one( token, 42 );
+one( token.signal, 42 );
 
-// cancel request if not completed in 5 seconds
-setTimeout(function(){
-    token.cancel();
+// only wait 5 seconds for the request!
+setTimeout( function(){
+    token.abort( "Request took too long!" );
 }, 5000 );
 ```
 
-In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and waits on `three(..)`, and `three(..)` calls and waits on `ajax(..)`. Because the same cancelation token is used for the 3 generators, if `token.cancel()` is executed while they're all still paused, they will all immediately abort.
+In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and waits on `three(..)`, and `three(..)` calls and waits on `ajax(..)`. Because the same cancelation token is used for the 3 generators, if `token.abort()` is executed while they're all still paused, they will all immediately abort.
 
-**Note:** In this example, the cancelation token has no effect on the `ajax(..)` call, since that utility ostensibly doesn't provide cancelation capability. The Ajax request itself would still run to its completion (or error or whatever), but we've canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response.
+**Note:** In this example, the cancelation token has no effect on the actual `ajax(..)` call itself, since that utility ostensibly doesn't provide cancelation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancelation Signal Handling](#manual-cancelation-signal-handling) below for addressing this concern.
 
-## Overview
+## Background/Motivation
 
 An `async function` and a `function*` generator (driven with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/master/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look, generally speaking, very similar. For that reason, most people just prefer `async function` since it's a little nicer syntax and doesn't require a library to provide the runner.
 
@@ -84,6 +84,8 @@ One clear example of this limitation is that an `async function` cannot be exter
 The best compromise is being able to call a `function*` generator like an `async function`, and providing it a cancelation token you can then use to signal that you want it to cancel. That's what **CAF** provides.
 
 The `CAF(..)` function takes a `function*` generator, and returns a regular function that expects arguments, much the same as if it was a normal `async function`. The only observable difference is that this function should be provided the cancelation token as its first argument, with any other arguments passed subsequent, as desired.
+
+## Overview
 
 These two functions are essentially equivalent; `one(..)` is an actual `async function`, whereas `two(..)` will behave like an async function in that it also returns a promise:
 
@@ -107,20 +109,122 @@ one( 21 )
 
 var token = new CAF.cancelToken();
 
-two( token, 21 )
+two( token.signal, 21 )
 .then( console.log, console.error );   // 42
 ```
 
-If `token.cancel(..)` is executed while `two(..)` is still running, its promise will be rejected. If you pass a cancelation reason (any value, but typically a string) to `token.cancel(..)`, that will be passed as the promise rejection:
+If `token.abort(..)` is executed while `two(..)` is still running, the signal's promise will be rejected. If you pass a cancelation reason (any value, but typically a string) to `token.abort(..)`, that will be the promise rejection reason:
 
 ```js
 two( token, 21 )
 .then( console.log, console.error );    // Took too long!
 
-setTimeout( function(){
-    token.cancel( "Took too long!" );
-}, 10 );
+token.abort( "Took too long!" );
 ```
+
+### `finally { .. }`
+
+Canceling a **CAF**-wrapped `function*` generator that is paused does cause it to abort right away, but if there's a pending `finally {..}` clause, that will still have a chance to run.
+
+Moreover, a `return` of a non-`undefined` value in that pending `finally {..}` clause will override the completion result of the function:
+
+```js
+var token = new CAF.cancelToken();
+
+var main = CAF( function *main(signal,url){
+    try {
+        return yield ajax( url );
+    }
+    finally {
+        return 42;
+    }
+} );
+
+main( token.signal, "http://some.tld/other" )
+.catch( console.log );   // 42 <-- not "Aborting!"
+
+token.abort( "Aborting!" );
+```
+
+Whatever value is passed to `abort(..)`, if any, is normally the completion value (promise rejection reason) of the function. But in this case, `42` overrides the `"Aborting!"` value.
+
+### `AbortController(..)`
+
+`CAF.cancelToken(..)` extends [`AbortController`, the DOM standard](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) for canceling/aborting operations like `fetch(..)` calls. As such, a cancelation token's signal can be passed directly to a DOM API like `fetch(..)` and it will respond to it accordingly:
+
+```js
+var token = new CAF.cancelToken();
+
+var main = CAF(function *main(signal,url) {
+    var resp = await fetch( url, { signal } );
+
+    console.log( resp );
+    return resp;
+});
+
+main( token.signal, "http://some.tld/other" )
+.catch( console.log );   // "Aborting!"
+
+token.abort( "Aborting!" );
+```
+
+**Note:** If the standard `AbortController` is not defined in the environment, it's [polyfilled](https://github.com/mo/abortcontroller-polyfill).
+
+### Manual Cancelation Signal Handling
+
+Even if you aren't calling a cancelation signal-aware utility (like `fetch(..)`), you can still manually listen to the cancelation signal:
+
+```js
+var token = new CAF.cancelToken();
+
+var main = CAF( function *main(signal,url){
+    // listen to the signal's promise rejection directly
+    signal.pr.catch( reason => {
+        // reason == "Aborting!"
+    } );
+
+    var resp = yield ajax( url );
+
+    console.log( resp );
+    return resp;
+} );
+
+main( token.signal, "http://some.tld/other" )
+.catch( console.log );   // "Aborting!"
+
+token.abort( "Aborting!" );
+```
+
+**Note:** The `catch(..)` handler inside of `main(..)` will still run, even though `main(..)` will be aborted at its waiting `yield` statement. If there was a way to manually cancel the `ajax(..)` call, that code could run here.
+
+And even if you aren't running in a **CAF**-wrapped function, you can still respond to the cancelation signal manually to interrupt flow control:
+
+```js
+var token = new CAF.cancelToken();
+
+// normal async function
+async function main(signal,url) {
+    try {
+        var resp = await Promise.race( [
+            ajax( url ),
+            signal.pr
+        ] );
+
+        console.log( resp );
+        return resp;
+    }
+    catch (err) {
+        // err == "Aborting!"
+    }
+}
+
+main( token.signal, "http://some.tld/other" )
+.catch( console.log );   // "Aborting!"
+
+token.abort( "Aborting!" );
+```
+
+**Note:** As discussed earlier, the `ajax(..)` call itself is not cancelation aware, and is thus not being aborted here. But we *are* aborting our waiting on the `ajax(..)` call. When `signal.pr` wins the `Promise.race(..)` race and creates an exception from its promise rejection, flow control jumps to the `catch (err) { .. }` clause.
 
 ## npm Package
 

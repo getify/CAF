@@ -11,6 +11,7 @@ else if (process.env.TEST_PACKAGE) {
 	global.CAF = require(path.join(".."));
 }
 else {
+	require(path.join("..","lib","abortcontroller-polyfill-modified.js"));
 	global.CAF = require(path.join("..","src","caf.src.js"));
 }
 

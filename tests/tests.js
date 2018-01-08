@@ -1,16 +1,17 @@
 "use strict";
 
 QUnit.test( "API", function test(assert){
-	assert.expect( 5 );
+	assert.expect( 6 );
 
 	assert.ok( _isFunction( CAF ), "CAF()" );
 	assert.ok( _hasProp( CAF, "cancelToken" ), "CAF.cancelToken" );
 	assert.ok( _isFunction( CAF.cancelToken ), "CAF.cancelToken()" );
-	assert.ok( _isFunction( (new CAF.cancelToken()).listen ), "CAF.cancelToken#listen()" );
-	assert.ok( _isFunction( (new CAF.cancelToken()).cancel ), "CAF.cancelToken#cancel()" );
+	assert.ok( _isObject( (new CAF.cancelToken()).signal ), "CAF.cancelToken#signal" );
+	assert.ok( _isObject( (new CAF.cancelToken()).signal.pr ), "CAF.cancelToken#signal.pr" );
+	assert.ok( _isFunction( (new CAF.cancelToken()).abort ), "CAF.cancelToken#abort()" );
 } );
 
-QUnit.test( "cancelToken", function test(assert){
+QUnit.test( "cancelToken.abort()", async function test(assert){
 	function checkParameter(reason) {
 		assert.step(reason);
 	}
@@ -20,26 +21,24 @@ QUnit.test( "cancelToken", function test(assert){
 	var rExpected = [
 		"quit",
 		"quit",
-		"---",
-		"quit",
 	];
 
-	token.listen(checkParameter);
-	token.listen(checkParameter);
-	token.cancel("quit");
-	assert.step("---");
-	token.listen(checkParameter);
+	token.signal.pr.catch(checkParameter);
+	token.abort("quit");
+	token.signal.pr.catch(checkParameter);
+
+	await token.signal.pr.catch(_=>1);
 
 	// rActual;
 
-	assert.expect( 5 ); // note: 1 assertion + 4 `step(..)` calls
+	assert.expect( 3 ); // note: 1 assertion + 2 `step(..)` calls
 	assert.verifySteps( rExpected, "cancelation reason passed" );
 } );
 
 QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	function *checkParameters(cancelToken,a,b,...args) {
 		assert.step(this.x);
-		assert.step(String(cancelToken === token));
+		assert.step(String(cancelToken === token.signal));
 		assert.step(a);
 		assert.step(b);
 		assert.step(String(args.length === 0));
@@ -62,7 +61,7 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	var asyncFn = CAF(checkParameters);
 
 	// rActual;
-	var pActual = asyncFn.call(obj,token,"3","12");
+	var pActual = asyncFn.call(obj,token.signal,"3","12");
 	var qActual = await pActual;
 	pActual = pActual.toString();
 
@@ -93,12 +92,12 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 	main = CAF(main);
 
 	setTimeout(function(){
-		token.cancel("Quit!");
+		token.abort("Quit!");
 	},50);
 
 	// rActual;
 	try {
-		await main(token,20);
+		await main(token.signal,20);
 	}
 	catch (err) {
 		var pActual = err;
@@ -134,12 +133,12 @@ QUnit.test( "cancelation + finally", async function test(assert){
 	main = CAF(main);
 
 	setTimeout(function(){
-		token.cancel();
+		token.abort();
 	},50);
 
 	// rActual;
 	try {
-		await main(token,20);
+		await main(token.signal,20);
 	}
 	catch (err) {
 		var pActual = err;
@@ -186,8 +185,8 @@ QUnit.test( "cascading cancelation", async function test(assert){
 		"secondary: done",
 		"main: 2",
 		"secondary: 3",
-		"secondary: done",
 		"main: done",
+		"secondary: done",
 	];
 	var pExpected = "Quit!";
 
@@ -195,12 +194,12 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	secondary = CAF(secondary);
 
 	setTimeout(function(){
-		token.cancel("Quit!");
+		token.abort("Quit!");
 	},50);
 
 	// rActual;
 	try {
-		await main(token,20);
+		await main(token.signal,20);
 	}
 	catch (err) {
 		var pActual = err;

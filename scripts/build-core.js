@@ -10,16 +10,18 @@ var fs = require("fs"),
 
 	ROOT_DIR = path.join(__dirname,".."),
 	SRC_DIR = path.join(ROOT_DIR,"src"),
+	LIB_DIR = path.join(ROOT_DIR,"lib"),
 	DIST_DIR = path.join(ROOT_DIR,"dist"),
 
-	LIB_SRC = path.join(SRC_DIR,"caf.src.js"),
-	LIB_DIST = path.join(DIST_DIR,"caf.js"),
+	POLYFILL_SRC = path.join(LIB_DIR,"abortcontroller-polyfill-modified.js"),
+	CORE_SRC = path.join(SRC_DIR,"caf.src.js"),
+	CORE_DIST = path.join(DIST_DIR,"caf.js"),
 
-	result
+	result = ""
 ;
 
 console.log("*** Building Core ***");
-console.log(`Building: ${LIB_DIST}`);
+console.log(`Building: ${CORE_DIST}`);
 
 try {
 	// try to make the dist directory, if needed
@@ -28,8 +30,10 @@ try {
 	}
 	catch (err) { }
 
+	result += fs.readFileSync(POLYFILL_SRC,{ encoding: "utf8" });
+	result += "\n" + fs.readFileSync(CORE_SRC,{ encoding: "utf8" });
+
 	// NOTE: since uglify doesn't yet support ES6, no minifying happening :(
-	result = fs.readFileSync(LIB_SRC,{ encoding: "utf8" });
 
 	// result = ugly.minify(path.join(SRC_DIR,"caf.src.js"),{
 	// 	mangle: {
@@ -63,7 +67,7 @@ try {
 	result = copyrightHeader + result;
 
 	// write dist
-	fs.writeFileSync( LIB_DIST, result /* result.code + "\n" */, { encoding: "utf8" } );
+	fs.writeFileSync( CORE_DIST, result /* result.code + "\n" */, { encoding: "utf8" } );
 
 	console.log("Complete.");
 }

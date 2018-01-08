@@ -1,12 +1,29 @@
 (function UMD(name,context,definition){
 	/* istanbul ignore next */if (typeof define === "function" && define.amd) { define(definition); }
-	/* istanbul ignore next */else if (typeof module !== "undefined" && module.exports) { module.exports = definition(); }
+	/* istanbul ignore next */else if (typeof module !== "undefined" && module.exports) { module.exports = definition(name,context); }
 	/* istanbul ignore next */else { context[name] = definition(name,context); }
 })("CAF",this,function DEF(name,context){
 	"use strict";
 
-	cancelToken.prototype.cancel = cancel;
-	cancelToken.prototype.listen = listen;
+	class cancelSignal extends AbortSignal {
+		constructor() {
+			super();
+			this.pr = new Promise((_,rej)=>this.rej = rej);
+			this.pr.catch(_=>1);	// silence unhandled rejection warnings
+		}
+	}
+
+	class cancelToken extends AbortController {
+		constructor() {
+			super();
+			this.signal = new cancelSignal();
+		}
+		abort(reason) {
+			super.abort();
+			this.signal.rej(reason);
+		}
+	}
+
 	CAF.cancelToken = cancelToken;
 
 	return CAF;
@@ -17,45 +34,18 @@
 
 	function CAF(generatorFn) {
 		return function instance(cancelToken,...args){
-			var trigger;
-			var canceled = new Promise(function c(_,rej){
-				trigger = rej;
-			});
 			var { it, pr } = _runner.call(this,generatorFn,cancelToken,...args);
-			cancelToken.listen(function onCancel(reason){
-				try { var ret = it.return(); } catch (err) {}
-				trigger(ret.value !== undefined ? ret.value : reason);
-				it = pr = trigger = null;
+			var cancel = cancelToken.pr.catch(function onCancel(reason){
+				try {
+					var ret = it.return();
+					throw ret.value !== undefined ? ret.value : reason;
+				}
+				finally { it = pr = cancel = null; }
 			});
-			var race = Promise.race([ pr, canceled ]);
+			var race = Promise.race([ pr, cancel ]);
 			race.catch(_=>1);	// silence unhandled rejection warnings
 			return race;
 		};
-	}
-
-	function cancelToken() {
-		this.canceled = false;
-		this.cancelationReason = undefined;
-		this.listeners = [];
-	}
-	function cancel(reason) {
-		this.cancelationReason = reason;
-		this.canceled = true;
-		// note: running in LIFO instead of FIFO order
-		// to ensure that cascaded cancelations run in
-		// expected order
-		while (this.listeners.length > 0) {
-			let cb = this.listeners.pop();
-			try { cb(reason); } catch (err) {}
-		}
-	}
-	function listen(cb) {
-		if (this.canceled) {
-			try { cb(this.cancelationReason); } catch (err) {}
-		}
-		else {
-			this.listeners.push(cb);
-		}
 	}
 
 	// thanks to Benjamin Gruenbaum (@benjamingr on GitHub) for
