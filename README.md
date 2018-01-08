@@ -1,6 +1,6 @@
 # Cancelable Async Functions (CAF)
 
-[![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
+[![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
 [![npm Module](https://badge.fury.io/js/async-caf.svg)](https://www.npmjs.org/package/async-caf)
 [![Dependencies](https://david-dm.org/getify/caf.svg)](https://david-dm.org/getify/caf)
 [![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf)
@@ -138,7 +138,7 @@ var CAF = require("async-caf");
 
 ## Builds
 
-[![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
+[![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
 [![npm Module](https://badge.fury.io/js/async-caf.svg)](https://www.npmjs.org/package/async-caf)
 
 The distribution library file (`dist/caf.js`) comes pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
