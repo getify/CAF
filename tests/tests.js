@@ -36,8 +36,9 @@ QUnit.test( "cancelToken", function test(assert){
 	assert.verifySteps( rExpected, "cancelation reason passed" );
 } );
 
-QUnit.test( "CAF() + parameters + return", async function test(assert){
+QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	function *checkParameters(cancelToken,a,b,...args) {
+		assert.step(this.x);
 		assert.step(String(cancelToken === token));
 		assert.step(a);
 		assert.step(b);
@@ -46,8 +47,10 @@ QUnit.test( "CAF() + parameters + return", async function test(assert){
 	}
 
 	var token = new CAF.cancelToken();
+	var obj = { x: "obj.x" };
 
 	var rExpected = [
+		"obj.x",
 		"true",
 		"3",
 		"12",
@@ -59,11 +62,11 @@ QUnit.test( "CAF() + parameters + return", async function test(assert){
 	var asyncFn = CAF(checkParameters);
 
 	// rActual;
-	var pActual = asyncFn(token,"3","12");
+	var pActual = asyncFn.call(obj,token,"3","12");
 	var qActual = await pActual;
 	pActual = pActual.toString();
 
-	assert.expect( 8 ); // note: 3 assertions + 4 `step(..)` calls
+	assert.expect( 9 ); // note: 4 assertions + 5 `step(..)` calls
 	assert.ok( _isFunction( asyncFn ), "asyncFn()" );
 	assert.verifySteps( rExpected, "check arguments to generator" );
 	assert.strictEqual( pActual, pExpected, "returns promise" );

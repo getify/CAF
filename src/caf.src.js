@@ -21,14 +21,14 @@
 			var canceled = new Promise(function c(_,rej){
 				trigger = rej;
 			});
-			var { it, pr } = _runner(generatorFn,cancelToken,...args);
+			var { it, pr } = _runner.call(this,generatorFn,cancelToken,...args);
 			cancelToken.listen(function onCancel(reason){
 				try { var ret = it.return(); } catch (err) {}
-				trigger(ret.value != undefined ? ret.value : reason);
+				trigger(ret.value !== undefined ? ret.value : reason);
 				it = pr = trigger = null;
 			});
 			var race = Promise.race([ pr, canceled ]);
-			race.catch(_ => 1); // prevent unhandled rejection warnings
+			race.catch(_=>1);	// silence unhandled rejection warnings
 			return race;
 		};
 	}
@@ -62,7 +62,7 @@
 	// big improvements here!
 	function _runner(gen,...args) {
 		// initialize the generator in the current context
-		var it = gen.apply( this, args );
+		var it = gen.apply(this,args);
 
 		// return a promise for the generator completing
 		return {
@@ -70,7 +70,7 @@
 			pr: Promise.resolve(
 					(function handleNext(value){
 						// run to the next yielded value
-						var next = it.next( value );
+						var next = it.next(value);
 
 						return (function handleResult(next){
 							// generator has completed running?
@@ -79,7 +79,7 @@
 							}
 							// otherwise keep going
 							else {
-								return Promise.resolve( next.value )
+								return Promise.resolve(next.value)
 									.then(
 										// resume the async loop on
 										// success, sending the resolved
@@ -92,9 +92,9 @@
 										// error handling
 										function handleErr(err) {
 											return Promise.resolve(
-												it.throw( err )
+												it.throw(err)
 											)
-											.then( handleResult );
+											.then(handleResult);
 										}
 									);
 							}
