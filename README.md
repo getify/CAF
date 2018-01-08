@@ -1,16 +1,16 @@
 # Cancelable Async Functions (CAF)
 
 [![Build Status](https://travis-ci.org/getify/caf.svg?branch=master)](https://travis-ci.org/getify/caf)
-[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/async-caf)
+[![npm Module](https://badge.fury.io/js/async-caf.svg)](https://www.npmjs.org/package/async-caf)
 [![Dependencies](https://david-dm.org/getify/caf.svg)](https://david-dm.org/getify/caf)
 [![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf)
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
 
-**caf** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancelation.
+**CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancelation.
 
 ## Environment Support
 
-This library uses ES2017 (and ES6) features. If you need to support environments prior to ES2017, transpile it first (with Babel, etc).
+This library uses ES6 (aka ES2015) features. If you need to support environments prior to ES6, transpile it first (with Babel, etc).
 
 ## At A Glance
 
@@ -40,9 +40,9 @@ setTimeout( function(){
 }, 3000 );
 ```
 
-You create a cancelation token (via `new CAF.cancelToken()`) to pass into your wrapped `function*` generator, and then if you cancel it, the `function*` generator will abort itself immediately, even if it's presently waiting on a promise to resolve.
+Create a cancelation token (via `new CAF.cancelToken()`) to pass into your wrapped `function*` generator, and then if you cancel the token, the `function*` generator will abort itself immediately, even if it's presently waiting on a promise to resolve.
 
-Moreover, the generator itself is provided the cancelation token (`cancelToken` parameter above), so that the `function*` generator can call another `function*` generator with **CAF**, and pass along the shared cancelation token. In this way, a single cancelation signal cascades across however many `function*` generators are currently in the execution chain:
+Moreover, the generator itself is provided the cancelation token (`cancelToken` parameter above), so you can call another `function*` generator with **CAF**, and pass along the shared cancelation token. In this way, a single cancelation signal cascades across however many `function*` generators are currently in the execution chain:
 
 ```js
 var token = new CAF.cancelToken();
@@ -67,25 +67,25 @@ setTimeout(function(){
 }, 5000 );
 ```
 
-In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and waits on `three(..)`, and `three(..)` calls and waits on `ajax(..)`. Because the same cancelation token is used for all 3 calls, if `token.cancel()` is executed while they're all still paused, they will immediately abort.
+In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and waits on `three(..)`, and `three(..)` calls and waits on `ajax(..)`. Because the same cancelation token is used for the 3 generators, if `token.cancel()` is executed while they're all still paused, they will all immediately abort.
 
-**Note:** In this example, the cancelation token has no effect on the `ajax(..)` call, since that utility ostensibly doesn't provide cancelation capability. The Ajax request itself would still run to its completion (or whatever), but we've canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process the response.
+**Note:** In this example, the cancelation token has no effect on the `ajax(..)` call, since that utility ostensibly doesn't provide cancelation capability. The Ajax request itself would still run to its completion (or error or whatever), but we've canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response.
 
 ## Overview
 
-An `async function` and a `function*` generator (with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/master/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look, generally speaking, very similar. For that reason, most people prefer `async function` since it's a little nicer syntax and doesn't require a library to provider the runner.
+An `async function` and a `function*` generator (driven with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/master/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look, generally speaking, very similar. For that reason, most people just prefer `async function` since it's a little nicer syntax and doesn't require a library to provide the runner.
 
 However, there are several limitations to `async function`s inherent to having the syntax and engine make implicit assumptions that you otherwise have to explicitly handle with `function*` generators.
 
 One clear example of this limitation is that an `async function` cannot be externally canceled once it starts running. If you want to be able to cancel it, you have to intrusively modify its definition to have it consult an external value source -- like a boolean -- at each line that you care about being a cancelation point. This is ugly and error-prone.
 
-`function*` generators by contrast can be aborted at any time, using the iterator's `return(..)` method. But downside of `function*` generators is either needing a library or the repetitive boilerplate of handling the iterator manually.
+`function*` generators by contrast can be aborted at any time, using the iterator's `return(..)` method. But the downside of `function*` generators is either needing a library or the repetitive boilerplate of handling the iterator manually.
 
 The best compromise is being able to call a `function*` generator like an `async function`, and providing it a cancelation token you can then use to signal that you want it to cancel. That's what **CAF** provides.
 
-The `CAF(..)` function takes a `function*` generator, and returns a regular function that expects arguments to execute the function, much the same as if it was a normal `async function`. The only observable difference is that this function should be provided the cancelation token as its first argument, with any other arguments passed subsequent, as desired.
+The `CAF(..)` function takes a `function*` generator, and returns a regular function that expects arguments, much the same as if it was a normal `async function`. The only observable difference is that this function should be provided the cancelation token as its first argument, with any other arguments passed subsequent, as desired.
 
-These two functions are functionally equivalent. `one(..)` is an actual `async function`, whereas `two(..)` will mimic an async function in that it also returns a promise:
+These two functions are essentially equivalent; `one(..)` is an actual `async function`, whereas `two(..)` will behave like an async function in that it also returns a promise:
 
 ```js
 async function one(v) {
@@ -99,7 +99,7 @@ var two = CAF( function *two(cancelToken,v){
 } );
 ```
 
-Both `one(..)` and `two(..)` can be called directly, with argument(s), and return a promise for their completion:
+Both `one(..)` and `two(..)` can be called directly, with argument(s), and both return a promise for their completion:
 
 ```js
 one( 21 )
@@ -111,7 +111,7 @@ two( token, 21 )
 .then( console.log, console.error );   // 42
 ```
 
-If `token.cancel(..)` is executed while `two(..)` is still running, its promise will be rejected. If you pass a cancelation reason (any value, but typically a string) to `token.cancel(..)`, that will be the promise rejection:
+If `token.cancel(..)` is executed while `two(..)` is still running, its promise will be rejected. If you pass a cancelation reason (any value, but typically a string) to `token.cancel(..)`, that will be passed as the promise rejection:
 
 ```js
 two( token, 21 )
