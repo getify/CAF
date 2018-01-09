@@ -227,6 +227,57 @@ token.abort( "Aborting!" );
 
 **Note:** As discussed earlier, the `ajax(..)` call itself is not cancelation aware, and is thus not being aborted here. But we *are* aborting our waiting on the `ajax(..)` call. When `signal.pr` wins the `Promise.race(..)` race and creates an exception from its promise rejection, flow control jumps straight to the `catch (err) { .. }` clause.
 
+### Beware Of Token Reuse
+
+Beware of creating a single cancelation token that is reused for separate chains of function calls. Unexpected results are likely, and they can be extremely difficult to debug.
+
+As illustrated earlier, it's totally OK and intended that a single cancelation token `signal` be shared across all the functions in **one** chain of calls (`A` -> `B` -> `C`). But reusing the same token **across two or more chains of calls** (`A` -> `B` -> `C` and `D` -> `E` -> `F`) is asking for trouble.
+
+Imagine a scenario where you make two separate `fetch(..)` calls, one after the other, and the second one runs too long so you cancel it via a timeout:
+
+```js
+var one = CAF( function *one(signal){
+    signal.pr.catch( reason => {
+        console.log( `one: ${reason}` );
+    } );
+
+    return yield fetch( "http://some.tld/", {signal} );
+} );
+
+var two = CAF( function *two(signal,v){
+    signal.pr.catch( reason => {
+        console.log( `two: ${reason}` );
+    } );
+
+    return yield fetch( `http://other.tld/?v=${v}`, {signal} );
+} );
+
+var token = CAF.cancelToken();
+
+one( token.signal )
+.then( function(v){
+    // only wait 3 seconds for this request
+    setTimeout( function(){
+        token.abort( "Second response too slow." );
+    }, 3000 );
+
+    return two( token.signal, v );
+} )
+.then( console.log, console.error );
+
+// one: Second response too slow.   <-- Oops!
+// two: Second response too slow.
+// Second response too slow.
+```
+
+When you call `token.abort(..)` to cancel the second `fetch(..)` call in `two(..)`, the `signal.pr.catch(..)` handler in `one(..)` still gets called, even though `one(..)` is already finished. That's why `"one: Second response too slow."` prints unexpectedly.
+
+The underlying gotcha is that a cancelation token's `signal` has a single `pr` promise associated with it, and there's no way to reset a promise or "unregister" `then(..)` / `catch(..)` handlers attached to it once you don't need them anymore. So if you reuse the token, you're reusing the `pr` promise, and all registered promise handlers will be fired, even old ones you likely don't intend.
+
+The above snippet illustrates this problem with `signal.pr.catch(..)`, but any of the other ways of listening to a promise -- such as `yield` / `await`, `Promise.all(..)` / `Promise.race(..)`, etc -- are all susceptible to the unexpected behavior.
+
+The safe and proper approach is to always create a new cancelation token for each chain of **CAF**-wrapped function calls. For good measure, always unset any references to a token once it's no longer needed; thus, you won't accidentally reuse it, and the JS engine can properly garbage collect it.
+
 ## npm Package
 
 Because of a naming conflict, this utility's `npm` package name is `async-caf`, not `caf`. So, to install it:
