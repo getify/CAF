@@ -1,9 +1,9 @@
 # Cancelable Async Functions (CAF)
 
 [![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
-[![npm Module](https://badge.fury.io/js/async-caf.svg)](https://www.npmjs.org/package/async-caf)
+[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
 [![Dependencies](https://david-dm.org/getify/caf.svg)](https://david-dm.org/getify/caf)
-[![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf)
+[![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf?type=dev)
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
 
 **CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancelation.
@@ -280,22 +280,22 @@ The safe and proper approach is to always create a new cancelation token for eac
 
 ## npm Package
 
-Because of a naming conflict, this utility's `npm` package name is `async-caf`, not `caf`. So, to install it:
+Prior to version 4.0.0, the package name was "async-caf", but starting with version 4.0.0, the name has been simplified to "caf". So, to install this package from `npm`:
 
 ```
-npm install async-caf
+npm install caf
 ```
 
 And to require it in a node script:
 
 ```js
-var CAF = require("async-caf");
+var CAF = require("caf");
 ```
 
 ## Builds
 
 [![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
-[![npm Module](https://badge.fury.io/js/async-caf.svg)](https://www.npmjs.org/package/async-caf)
+[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
 
 The distribution library file (`dist/caf.js`) comes pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
 
