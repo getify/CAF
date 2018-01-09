@@ -32,7 +32,6 @@
 
 	function CAF(generatorFn) {
 		return function instance(signal,...args){
-			var { it, success } = _runner.call(this,generatorFn,signal,...args);
 			var cancelation = signal.pr.catch(function onCancel(reason){
 				try {
 					var ret = it.return();
@@ -40,6 +39,7 @@
 				}
 				finally { it = success = cancelation = null; }
 			});
+			var { it, success } = _runner.call(this,generatorFn,signal,...args);
 			var completion = Promise.race([ success, cancelation ]);
 			completion.catch(_=>1);	// silence unhandled rejection warnings
 			return completion;

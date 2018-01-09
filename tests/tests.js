@@ -206,11 +206,62 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	}
 
 	assert.expect( 9 ); // note: 2 assertions + 7 `step(..)` calls
-	assert.verifySteps( rExpected, "canceled after during second 'secondary()' call" );
+	assert.verifySteps( rExpected, "canceled during second 'secondary()' call" );
 	assert.strictEqual( pActual, pExpected, "Quit!" );
 } );
 
+QUnit.test( "cancelation rejection ordering", async function test(assert){
+	function *main(signal,ms) {
+		signal.pr.catch(()=>assert.step("main:signal.pr.catch"));
 
+		assert.step("main: 1");
+		var pr = secondary(signal,ms);
+		pr.catch(()=>assert.step("main:pr.catch"));
+		yield pr;
+		assert.step("main: shouldn't happen");
+	}
+
+	function *secondary(signal,ms) {
+		signal.pr.catch(()=>assert.step("secondary:signal.pr.catch"));
+
+		assert.step(`secondary: 1`);
+		yield _delay(ms);
+		assert.step("secondary: shouldn't happen");
+	}
+
+	var token = new CAF.cancelToken();
+
+	var rExpected = [
+		"main: 1",
+		"secondary: 1",
+		"main:signal.pr.catch",
+		"secondary:signal.pr.catch",
+		"outer:pr.catch",
+		"main:pr.catch",
+	];
+	var pExpected = "Quit!";
+
+	main = CAF(main);
+	secondary = CAF(secondary);
+
+	setTimeout(function(){
+		token.abort("Quit!");
+	},30);
+
+	// rActual;
+	try {
+		var pr = main(token.signal,50);
+		pr.catch(()=>assert.step("outer:pr.catch"));
+		await pr;
+	}
+	catch (err) {
+		var pActual = err;
+	}
+
+	assert.expect( 8 ); // note: 2 assertions + 6 `step(..)` calls
+	assert.verifySteps( rExpected, "rejects in expected order" );
+	assert.strictEqual( pActual, pExpected, "Quit!" );
+} );
 
 
 
