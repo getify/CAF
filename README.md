@@ -95,7 +95,7 @@ async function one(v) {
     return v * 2;
 }
 
-var two = CAF( function *two(cancelToken,v){
+var two = CAF( function *two(signal,v){
     yield delay( 100 );
     return v * 2;
 } );
