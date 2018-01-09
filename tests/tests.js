@@ -251,7 +251,8 @@ QUnit.test( "cancelation rejection ordering", async function test(assert){
 	// rActual;
 	try {
 		var pr = main(token.signal,50);
-		pr.catch(()=>assert.step("outer:pr.catch"));
+		var x = pr.catch(()=>assert.step("outer:pr.catch"));
+		await x;
 		await pr;
 	}
 	catch (err) {
