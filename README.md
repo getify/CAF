@@ -156,7 +156,7 @@ Whatever value is passed to `abort(..)`, if any, is normally set as the promise 
 var token = new CAF.cancelToken();
 
 var main = CAF(function *main(signal,url) {
-    var resp = await fetch( url, { signal } );
+    var resp = yield fetch( url, { signal } );
 
     console.log( resp );
     return resp;
