@@ -1,6 +1,6 @@
 {
 	"name": "async-caf",
-	"version": "3.0.5",
+	"version": "3.0.6",
 	"description": "Wrapper for generators as cancelable async functions",
 	"main": "./dist/caf.js",
 	"scripts": {
@@ -18,13 +18,14 @@
 	},
 	"devDependencies": {
 		"coveralls": "~3.0.0",
-		"qunitjs": "~2.4.1"
+		"qunit": "~2.4.1"
 	},
 	"repository": "getify/caf",
 	"keywords": [
-		"fp",
-		"functional programming",
-		"async"
+		"async",
+		"promises",
+		"generators",
+		"cancelation"
 	],
 	"bugs": {
 		"url": "https://github.com/getify/caf/issues",

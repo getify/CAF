@@ -231,7 +231,7 @@ token.abort( "Aborting!" );
 
 Beware of creating a single cancelation token that is reused for separate chains of function calls. Unexpected results are likely, and they can be extremely difficult to debug.
 
-As illustrated earlier, it's totally OK and intended that a single cancelation token `signal` be shared across all the functions in **one** chain of calls (`A` -> `B` -> `C`). But reusing the same token **across two or more chains of calls** (`A` -> `B` -> `C` and `D` -> `E` -> `F`) is asking for trouble.
+As illustrated earlier, it's totally OK and intended that a single cancelation token `signal` be shared across all the functions in **one** chain of calls (`A` -> `B` -> `C`). But reusing the same token **across two or more chains of calls** (`A` -> `B` -> `C` ***and*** `D` -> `E` -> `F`) is asking for trouble.
 
 Imagine a scenario where you make two separate `fetch(..)` calls, one after the other, and the second one runs too long so you cancel it via a timeout:
 

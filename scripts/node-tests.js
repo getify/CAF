@@ -15,7 +15,7 @@ else {
 	global.CAF = require(path.join("..","src","caf.src.js"));
 }
 
-global.QUnit = require("qunitjs");
+global.QUnit = require("qunit");
 
 require("../tests/qunit.config.js");
 require("../tests/tests.js");
