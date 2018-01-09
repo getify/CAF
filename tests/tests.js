@@ -36,9 +36,9 @@ QUnit.test( "cancelToken.abort()", async function test(assert){
 } );
 
 QUnit.test( "CAF() + this + parameters + return", async function test(assert){
-	function *checkParameters(cancelToken,a,b,...args) {
+	function *checkParameters(signal,a,b,...args) {
 		assert.step(this.x);
-		assert.step(String(cancelToken === token.signal));
+		assert.step(String(signal === token.signal));
 		assert.step(a);
 		assert.step(b);
 		assert.step(String(args.length === 0));
@@ -73,7 +73,7 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 } );
 
 QUnit.test( "cancelation + rejection", async function test(assert){
-	function *main(cancelToken,ms) {
+	function *main(signal,ms) {
 		for (let i = 0; i < 5; i++) {
 			assert.step(`step: ${i}`);
 			yield _delay(ms);
@@ -109,7 +109,7 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 } );
 
 QUnit.test( "cancelation + finally", async function test(assert){
-	function *main(cancelToken,ms) {
+	function *main(signal,ms) {
 		try {
 			for (let i = 0; i < 5; i++) {
 				assert.step(`step: ${i}`);
@@ -150,15 +150,15 @@ QUnit.test( "cancelation + finally", async function test(assert){
 } );
 
 QUnit.test( "cascading cancelation", async function test(assert){
-	function *main(cancelToken,ms) {
+	function *main(signal,ms) {
 		try {
 			assert.step("main: 1");
 			yield _delay(ms);
 
-			var x = yield secondary(cancelToken,ms,2);
+			var x = yield secondary(signal,ms,2);
 			assert.step(`main: ${x}`);
 
-			x = yield secondary(cancelToken,ms,3);
+			x = yield secondary(signal,ms,3);
 			assert.step("shouldn't happen");
 		}
 		finally {
@@ -166,7 +166,7 @@ QUnit.test( "cascading cancelation", async function test(assert){
 		}
 	}
 
-	function *secondary(cancelToken,ms,v) {
+	function *secondary(signal,ms,v) {
 		try {
 			assert.step(`secondary: ${v}`);
 			yield _delay(ms);

@@ -5,22 +5,20 @@
 })("CAF",this,function DEF(name,context){
 	"use strict";
 
-	class cancelSignal extends AbortSignal {
+	class cancelToken {
 		constructor() {
-			super();
+			this.controller = new AbortController();
 			this.pr = new Promise((_,rej)=>this.rej = rej);
-			this.pr.catch(_=>1);	// silence unhandled rejection warnings
-		}
-	}
-
-	class cancelToken extends AbortController {
-		constructor() {
-			super();
-			this.signal = new cancelSignal();
+			// silence unhandled rejection warnings
+			this.pr.catch(_=>1);
 		}
 		abort(reason) {
-			super.abort();
-			this.signal.rej(reason);
+			this.rej(reason);
+			this.controller.abort();
+		}
+		get signal() {
+			this.controller.signal.pr = this.pr;
+			return this.controller.signal;
 		}
 	}
 
@@ -33,18 +31,18 @@
 	// Private
 
 	function CAF(generatorFn) {
-		return function instance(cancelToken,...args){
-			var { it, pr } = _runner.call(this,generatorFn,cancelToken,...args);
-			var cancel = cancelToken.pr.catch(function onCancel(reason){
+		return function instance(signal,...args){
+			var { it, success } = _runner.call(this,generatorFn,signal,...args);
+			var cancelation = signal.pr.catch(function onCancel(reason){
 				try {
 					var ret = it.return();
 					throw ret.value !== undefined ? ret.value : reason;
 				}
-				finally { it = pr = cancel = null; }
+				finally { it = success = cancelation = null; }
 			});
-			var race = Promise.race([ pr, cancel ]);
-			race.catch(_=>1);	// silence unhandled rejection warnings
-			return race;
+			var completion = Promise.race([ success, cancelation ]);
+			completion.catch(_=>1);	// silence unhandled rejection warnings
+			return completion;
 		};
 	}
 
@@ -57,7 +55,7 @@
 		// return a promise for the generator completing
 		return {
 			it,
-			pr: Promise.resolve(
+			success: Promise.resolve(
 					(function handleNext(value){
 						// run to the next yielded value
 						var next = it.next(value);
