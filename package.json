@@ -1,6 +1,6 @@
 {
 	"name": "caf",
-	"version": "4.0.0",
+	"version": "4.0.1",
 	"description": "Wrapper for generators as cancelable async functions",
 	"main": "./dist/caf.js",
 	"scripts": {
@@ -18,7 +18,7 @@
 	},
 	"devDependencies": {
 		"coveralls": "~3.0.0",
-		"qunit": "~2.4.1"
+		"qunit": "~2.5.0"
 	},
 	"repository": "getify/caf",
 	"keywords": [
