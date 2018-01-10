@@ -38,10 +38,10 @@ QUnit.test( "cancelToken.abort()", async function test(assert){
 QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	function *checkParameters(signal,a,b,...args) {
 		assert.step(this.x);
-		assert.step(String(signal === token.signal));
+		assert.step(signal === token.signal);
 		assert.step(a);
 		assert.step(b);
-		assert.step(String(args.length === 0));
+		assert.step(args.length === 0);
 		return 42;
 	}
 
@@ -50,10 +50,10 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 
 	var rExpected = [
 		"obj.x",
-		"true",
-		"3",
-		"12",
-		"true",
+		true,
+		3,
+		12,
+		true,
 	];
 	var pExpected = "[object Promise]";
 	var qExpected = 42;
@@ -61,7 +61,7 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	var asyncFn = CAF(checkParameters);
 
 	// rActual;
-	var pActual = asyncFn.call(obj,token.signal,"3","12");
+	var pActual = asyncFn.call(obj,token.signal,3,12);
 	var qActual = await pActual;
 	pActual = pActual.toString();
 
