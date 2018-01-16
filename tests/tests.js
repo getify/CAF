@@ -72,6 +72,34 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	assert.strictEqual( qActual, qExpected, "eventually returns 42" );
 } );
 
+QUnit.test( "immediate exception rejection", async function test(assert){
+	function *main(signal,msg) {
+		assert.step("main");
+		throw msg;
+		assert.step("didn't get here");
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAF(main);
+
+	var rExpected = [
+		"main",
+		"Oops right away!",
+	];
+
+	// rActual
+	try {
+		await main(token.signal,"Oops right away!");
+		assert.step("didn't run this");
+	}
+	catch (err) {
+		assert.step(err);
+	}
+
+	assert.expect( 3 ); // note: 1 assertions + 2 `step(..)` calls
+	assert.verifySteps( rExpected, "immediate exception => rejection" );
+} );
+
 QUnit.test( "cancelation + rejection", async function test(assert){
 	function *main(signal,ms) {
 		for (let i = 0; i < 5; i++) {
@@ -81,6 +109,7 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 	}
 
 	var token = new CAF.cancelToken();
+	main = CAF(main);
 
 	var rExpected = [
 		"step: 0",
@@ -88,8 +117,6 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 		"step: 2",
 	];
 	var pExpected = "Quit!";
-
-	main = CAF(main);
 
 	setTimeout(function(){
 		token.abort("Quit!");
@@ -122,6 +149,7 @@ QUnit.test( "cancelation + finally", async function test(assert){
 	}
 
 	var token = new CAF.cancelToken();
+	main = CAF(main);
 
 	var rExpected = [
 		"step: 0",
@@ -129,8 +157,6 @@ QUnit.test( "cancelation + finally", async function test(assert){
 		"step: 2",
 	];
 	var pExpected = 42;
-
-	main = CAF(main);
 
 	setTimeout(function(){
 		token.abort();
@@ -178,6 +204,8 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	}
 
 	var token = new CAF.cancelToken();
+	main = CAF(main);
+	secondary = CAF(secondary);
 
 	var rExpected = [
 		"main: 1",
@@ -189,9 +217,6 @@ QUnit.test( "cascading cancelation", async function test(assert){
 		"secondary: done",
 	];
 	var pExpected = "Quit!";
-
-	main = CAF(main);
-	secondary = CAF(secondary);
 
 	setTimeout(function(){
 		token.abort("Quit!");
@@ -230,6 +255,8 @@ QUnit.test( "cancelation rejection ordering", async function test(assert){
 	}
 
 	var token = new CAF.cancelToken();
+	main = CAF(main);
+	secondary = CAF(secondary);
 
 	var rExpected = [
 		"main: 1",
@@ -240,9 +267,6 @@ QUnit.test( "cancelation rejection ordering", async function test(assert){
 		"main:pr.catch",
 	];
 	var pExpected = "Quit!";
-
-	main = CAF(main);
-	secondary = CAF(secondary);
 
 	setTimeout(function(){
 		token.abort("Quit!");

@@ -55,15 +55,18 @@
 		// return a promise for the generator completing
 		return {
 			it,
-			success: Promise.resolve(
-					(function handleNext(value){
+			success: (function handleNext(value){
+					// this `try` is only necessary to catch
+					// an immediate exception on the first iteration
+					// of the generator.
+					try {
 						// run to the next yielded value
 						var next = it.next(value);
 
 						return (function handleResult(next){
 							// generator has completed running?
 							if (next.done) {
-								return next.value;
+								return Promise.resolve(next.value);
 							}
 							// otherwise keep going
 							else {
@@ -87,8 +90,12 @@
 									);
 							}
 						})(next);
-					})()
-				)
+					}
+					catch (err) {
+						// immediate exception becomes rejection
+						return Promise.reject(err);
+					}
+				})()
 		};
 	}
 
