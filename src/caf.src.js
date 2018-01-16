@@ -37,10 +37,10 @@
 					var ret = it.return();
 					throw ret.value !== undefined ? ret.value : reason;
 				}
-				finally { it = success = cancelation = null; }
+				finally { it = result = cancelation = null; }
 			});
-			var { it, success } = _runner.call(this,generatorFn,signal,...args);
-			var completion = Promise.race([ success, cancelation ]);
+			var { it, result } = _runner.call(this,generatorFn,signal,...args);
+			var completion = Promise.race([ result, cancelation ]);
 			completion.catch(_=>1);	// silence unhandled rejection warnings
 			return completion;
 		};
@@ -55,46 +55,46 @@
 		// return a promise for the generator completing
 		return {
 			it,
-			success: (function handleNext(value){
+			result: (function handleNext(value){
 					// this `try` is only necessary to catch
 					// an immediate exception on the first iteration
 					// of the generator.
 					try {
 						// run to the next yielded value
 						var next = it.next(value);
-
-						return (function handleResult(next){
-							// generator has completed running?
-							if (next.done) {
-								return Promise.resolve(next.value);
-							}
-							// otherwise keep going
-							else {
-								return Promise.resolve(next.value)
-									.then(
-										// resume the async loop on
-										// success, sending the resolved
-										// value back into the generator
-										handleNext,
-
-										// if `value` is a rejected
-										// promise, propagate error back
-										// into the generator for its own
-										// error handling
-										function handleErr(err) {
-											return Promise.resolve(
-												it.throw(err)
-											)
-											.then(handleResult);
-										}
-									);
-							}
-						})(next);
 					}
 					catch (err) {
 						// immediate exception becomes rejection
 						return Promise.reject(err);
 					}
+
+					return (function handleResult(next){
+						// generator has completed running?
+						if (next.done) {
+							return Promise.resolve(next.value);
+						}
+						// otherwise keep going
+						else {
+							return Promise.resolve(next.value)
+								.then(
+									// resume the async loop on
+									// success, sending the resolved
+									// value back into the generator
+									handleNext,
+
+									// if `value` is a rejected
+									// promise, propagate error back
+									// into the generator for its own
+									// error handling
+									function handleErr(err) {
+										return Promise.resolve(
+											it.throw(err)
+										)
+										.then(handleResult);
+									}
+								);
+						}
+					})(next);
 				})()
 		};
 	}
