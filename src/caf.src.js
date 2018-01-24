@@ -8,17 +8,14 @@
 	class cancelToken {
 		constructor() {
 			this.controller = new AbortController();
-			this.pr = new Promise((_,rej)=>this.rej = rej);
+			this.signal = this.controller.signal;
+			this.signal.pr = new Promise((_,rej)=>this.rej = rej);
 			// silence unhandled rejection warnings
-			this.pr.catch(_=>1);
+			this.signal.pr.catch(_=>1);
 		}
 		abort(reason) {
 			this.rej(reason);
 			this.controller.abort();
-		}
-		get signal() {
-			this.controller.signal.pr = this.pr;
-			return this.controller.signal;
 		}
 	}
 
@@ -32,16 +29,19 @@
 
 	function CAF(generatorFn) {
 		return function instance(signal,...args){
-			var cancelation = signal.pr.catch(function onCancel(reason){
+			// listen for cancelation signal
+			var cancelation = signal.pr.catch(function onCancelation(reason){
 				try {
 					var ret = it.return();
-					throw ret.value !== undefined ? ret.value : reason;
+					throw (ret.value !== undefined ? ret.value : reason);
 				}
-				finally { it = result = cancelation = null; }
+				// clean up memory
+				finally { it = result = cancelation = completion = null; }
 			});
 			var { it, result } = _runner.call(this,generatorFn,signal,...args);
 			var completion = Promise.race([ result, cancelation ]);
 			completion.catch(_=>1);	// silence unhandled rejection warnings
+			signal = args = null; // clean up memory
 			return completion;
 		};
 	}
@@ -51,51 +51,59 @@
 	function _runner(gen,...args) {
 		// initialize the generator in the current context
 		var it = gen.apply(this,args);
+		gen = args = null; // clean up memory
 
-		// return a promise for the generator completing
 		return {
 			it,
-			result: (function handleNext(value){
-					// this `try` is only necessary to catch
-					// an immediate exception on the first iteration
-					// of the generator.
-					try {
-						// run to the next yielded value
-						var next = it.next(value);
+			// a promise for the generator completing
+			result: (function getNextResult(curValue){
+				// NOTE: this `try` is only necessary to catch
+				// an immediate exception on the first iteration
+				// of the generator. The below .then(..) would
+				// catch any subsequent exceptions.
+				try {
+					// run to the next yielded value
+					var nextResult = it.next(curValue);
+					curValue = null; // clean up memory
+				}
+				catch (err) {
+					// exception becomes rejection
+					return Promise.reject(err);
+				}
+
+				return (function processResult(nextResult){
+					var prNext = Promise.resolve(nextResult.value);
+
+					// generator no longer running?
+					if (nextResult.done) {
+						it = null;
 					}
-					catch (err) {
-						// immediate exception becomes rejection
-						return Promise.reject(err);
+					// otherwise keep going
+					else {
+						prNext = prNext.then(
+							// resume on fulfillment, sending the
+							// fulfilled value back into the generator
+							getNextResult,
+
+							// if we receive a rejected promise,
+							// throw the reason as exception back
+							// into the generator for its own error
+							// handling (if any)
+							function onRejection(reason){
+								return Promise.resolve(
+									it.throw(reason)
+								)
+								.then(processResult);
+							}
+						);
+						// clean up memory
+						prNext.catch(function cleanup(){ it = null; });
 					}
 
-					return (function handleResult(next){
-						// generator has completed running?
-						if (next.done) {
-							return Promise.resolve(next.value);
-						}
-						// otherwise keep going
-						else {
-							return Promise.resolve(next.value)
-								.then(
-									// resume the async loop on
-									// success, sending the resolved
-									// value back into the generator
-									handleNext,
-
-									// if `value` is a rejected
-									// promise, propagate error back
-									// into the generator for its own
-									// error handling
-									function handleErr(err) {
-										return Promise.resolve(
-											it.throw(err)
-										)
-										.then(handleResult);
-									}
-								);
-						}
-					})(next);
-				})()
+					nextResult = null; // clean up memory
+					return prNext;
+				})(nextResult);
+			})()
 		};
 	}
 
