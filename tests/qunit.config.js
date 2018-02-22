@@ -26,7 +26,7 @@ function testLog(details) {
 	var testId = details.testId;
 
 	testLogEntries[testId] = testLogEntries[testId] || {};
-	testLogEntries[testId][details.message] = details;
+	testLogEntries[testId][details.message] = JSON.parse(JSON.stringify(details));
 }
 
 function testDone(results){
