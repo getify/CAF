@@ -35,7 +35,7 @@ main( token.signal, "http://some.tld/other" )
 .then( onResponse, onCancelOrError );
 
 // only wait 5 seconds for the request!
-setTimeout( function(){
+setTimeout( function onElapsed(){
     token.abort( "Request took too long!" );
 }, 5000 );
 ```
@@ -62,7 +62,7 @@ var three = CAF( function* three(signal,v){
 one( token.signal, 42 );
 
 // only wait 5 seconds for the request!
-setTimeout( function(){
+setTimeout( function onElapsed(){
     token.abort( "Request took too long!" );
 }, 5000 );
 ```
@@ -121,6 +121,112 @@ two( token, 21 )
 
 token.abort( "Took too long!" );
 ```
+
+### Delays & Timeouts
+
+One of the most common use-cases for cancelation of an async task is because too much time passes and a timeout threshold is passed.
+
+As shown earlier, you can implement that sort of logic with a `cancelToken()` instance and a manual call to the environment's `setTimeout(..)`. However, there are some subtle but important downsides to doing this kind of thing manually. These downsides are harder to spot in the browser, but are more obvious in Node.js
+
+Consider this code:
+
+```js
+function delay(ms) {
+    return new Promise( function c(res){
+        setTimeout( res, ms );
+    } );
+}
+
+var token = new CAF.cancelToken();
+
+var main = CAF( function *main(signal,ms){
+    yield delay( ms );
+    console.log( "All done!" );
+} );
+
+main( token.signal, 100 );
+
+// only wait 5 seconds for the request!
+delay( 5000 ).then( function onElapsed(){
+    token.abort( "Request took too long!" );
+} );
+```
+
+The `main(..)` function delays for `100`ms and then completes. But there's no logic that clears the timeout set from `delay( 5000 )`, so it will continue to hold pending until that amount of time expires.
+
+Of course, the `token.abort(..)` call at that point is moot, and is thus silently ignored. But the problem is the timer still running, which keeps a Node.js process alive even if the rest of the program has completed. The symptoms of this would be running a Node.js program from the command line and observing it "hang" for a bit at the end instead of exiting right away. Try the above code to see this in action.
+
+So there's two problems if you want to avoid this downside:
+
+1. If you set up your own timer externally, you need to keep track of the timer's handle so you can call `clearTimeout(..)` if the async task completes successfully before the timeout expires. This is manual and error-prone, as it's far too easy to forget.
+
+2. The `delay(..)` helper show, which is a promisified version of `setTimeout(..)`, is basically what you can produce by using [Node.js's `util.promisify(..)`](https://nodejs.org/dist/latest-v8.x/docs/api/util.html#util_util_promisify_original) against `setTimeout(..)`. However, that timer itself is not cancelable. You can't access the timer handle (return value from `setTimeout(..)`) to call `clearTimeout(..)` on it.
+
+To avoid requiring you to invent solutions to these problems, **CAF** provides two utilities for managing cancelable delays and timeout cancelations: `CAF.delay(..)` and `CAF.timeout(..)`.
+
+#### `CAF.delay(..)`
+
+Let's look at a scenario that illustrates the `CAF.delay(..)` utility:
+
+```js
+var token = new CAF.cancelToken();
+var discardTimeout = new CAF.cancelToken();
+
+var main = CAF( function *main(signal,ms){
+    yield CAF.delay( signal, ms );
+    console.log( "All done!" );
+} );
+
+main( token.signal, 100 )
+.then( function onComplete(){
+    discardTimeout.abort();
+} );
+
+// only wait 5 seconds for the request!
+CAF.delay( discardTimeout.signal, 5000 )
+.then(
+    function onElapsed(msg){
+        // msg: "delayed: 5000"
+        token.abort( "Request took too long!" );
+    },
+    function onInterrupted(reason){
+        // reason: "delay (5000) interrupted"
+    }
+);
+```
+
+`CAF.delay(..)` is a promisified `setTimeout(..)` wrapped, but with support for external cancelation, so you can clear and discard the timeout if you need to. The promise returned from `CAF.delay(..)` is fulfilled if the full time amount elapses, with a message such as `"delayed: 5000"`. If the timeout is aborted via the cancelation token, the promise is rejected with a reason like `"delay (5000) interrupted"`.
+
+Also note that if you don't need a cancelable timeout, `CAF.delay(..)` just works normally without creating or passing a token signal:
+
+```
+CAF.delay( 200 ).then( function onElapsed(){
+    console.log( "Some time went by!" );
+} );
+```
+
+#### `CAF.timeout(..)`
+
+While `CAF.delay(..)` provides a cancelable timeout promise, it's still overly manual to connect the dots between a **CAF**-wrapped function and the timeout-abort. **CAF** provides `CAF.timeout(..)` to streamline this use-case:
+
+```js
+var timeoutToken = CAF.timeout( 5000, "Took too long!" );
+
+var main = CAF( function *main(signal,ms){
+    yield CAF.delay( signal, ms );
+    console.log( "All done!" );
+} );
+
+main( timeoutToken, 100 );  // NOTE: passing the token and not the .signal !!
+```
+
+`CAF.timeout(..)` creates an instance of `cancelationToken(..)` that's set to `abort()` after the specified amount of time, optionally using the message you provide.
+
+Note that you should pass the full `timeoutToken` token to the **CAF**-wrapped function (`main(..)`), instead of normally just passing `timeoutToken.signal`. **CAF** is then able to wire the token and the **CAF**-wrapped function together, so that each one stops the other, whichever one triggers first. No more hanging timeouts!
+
+Also note that `main(..)` receives a normal `signal` as always, which is suitable to pass along to other cancelable async functions, such as `CAF.delay(..)` as shown.
+
+`timeoutToken` is a regular cancelation token as created by `CAF.cancelToken()`. As such, you can call `abort(..)` on it directly, if necessary. You can also access `timeoutToken.signal` to access its signal, and `timeoutToken.signal.pr` to access the promise that's rejected when the signal is aborted.
 
 ### `finally { .. }`
 

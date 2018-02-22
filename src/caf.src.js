@@ -9,9 +9,10 @@
 		constructor() {
 			this.controller = new AbortController();
 			this.signal = this.controller.signal;
+			// note: => arrow function used here for lexical this
 			this.signal.pr = new Promise((_,rej)=>this.rej = rej);
 			// silence unhandled rejection warnings
-			this.signal.pr.catch(_=>1);
+			this.signal.pr.catch(Function.prototype);
 		}
 		abort(reason) {
 			this.rej(reason);
@@ -19,17 +20,28 @@
 		}
 	}
 
+	const TIMEOUT_TOKEN = Symbol("Timeout Token");
+
 	CAF.cancelToken = cancelToken;
+	CAF.delay = delay;
+	CAF.timeout = timeout;
 
 	return CAF;
 
 
 	// ***************************************
-	// Private
 
 	function CAF(generatorFn) {
-		return function instance(signal,...args){
-			// listen for cancelation signal
+		return function instance(tokenOrSignal,...args){
+			var signal = (tokenOrSignal instanceof cancelToken) ?
+				tokenOrSignal.signal :
+				tokenOrSignal;
+
+			// already aborted?
+			if (signal.aborted) {
+				return signal.pr;
+			}
+			// listen for abort signal
 			var cancelation = signal.pr.catch(function onCancelation(reason){
 				try {
 					var ret = it.return();
@@ -40,10 +52,85 @@
 			});
 			var { it, result } = _runner.call(this,generatorFn,signal,...args);
 			var completion = Promise.race([ result, cancelation ]);
-			completion.catch(_=>1);	// silence unhandled rejection warnings
+			if (
+				// cancelation token passed in?
+				tokenOrSignal !== signal &&
+				// recognized special timeout token?
+				tokenOrSignal[TIMEOUT_TOKEN]
+			) {
+				// cancel timeout upon instance completion
+				completion.then(
+					function t(){tokenOrSignal.abort();},
+					function c(){tokenOrSignal.abort();}
+				);
+			}
+			else {
+				// silence unhandled rejection warnings
+				completion.catch(Function.prototype);
+			}
 			signal = args = null; // clean up memory
 			return completion;
 		};
+	}
+
+	function delay(tokenOrSignal,ms) {
+		// was delay ms passed first?
+		if (
+			typeof tokenOrSignal == "number" &&
+			typeof ms != "number"
+		) {
+			// swap arguments
+			[ms,tokenOrSignal] = [tokenOrSignal,ms];
+		}
+
+		var signal = (tokenOrSignal && tokenOrSignal instanceof cancelToken) ?
+			tokenOrSignal.signal :
+			tokenOrSignal;
+
+		// already aborted?
+		if (signal && signal.aborted) {
+			return signal.pr;
+		}
+
+		return new Promise(function c(res,rej){
+			if (signal) {
+				signal.pr.catch(function onAbort(){
+					if (intv) {
+						clearTimeout(intv);
+						rej(`delay (${ms}) interrupted`);
+					}
+					res = rej = intv = signal = null;
+				});
+			}
+
+			var intv = setTimeout(function onTimeout(){
+				res(`delayed: ${ms}`);
+				res = rej = intv = signal = null;
+			},ms);
+		});
+	}
+
+	function timeout(duration,message = "Timeout") {
+		duration = Number(duration) || 0;
+		var timeoutToken = new cancelToken();
+		delay(timeoutToken.signal,duration).then(cleanup,cleanup);
+
+		// branding
+		Object.defineProperty(timeoutToken,TIMEOUT_TOKEN,{
+			value: true,
+			writable: false,
+			enumerable: false,
+			configurable: false,
+		});
+
+		return timeoutToken;
+
+
+		// *********************************
+		function cleanup() {
+			timeoutToken.abort(message);
+			timeoutToken = null;
+		}
 	}
 
 	// thanks to Benjamin Gruenbaum (@benjamingr on GitHub) for
