@@ -1,7 +1,7 @@
 {
 	"name": "caf",
-	"version": "7.0.0",
-	"description": "Wrapper for generators as cancelable async functions",
+	"version": "7.0.1",
+	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./dist/caf.js",
 	"scripts": {
 		"test": "node scripts/node-tests.js",
@@ -18,7 +18,7 @@
 	},
 	"devDependencies": {
 		"coveralls": "~3.0.0",
-		"qunit": "~2.5.0"
+		"qunit": "~2.6.0"
 	},
 	"repository": "getify/caf",
 	"keywords": [
