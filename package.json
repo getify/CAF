@@ -1,6 +1,6 @@
 {
 	"name": "caf",
-	"version": "7.0.1",
+	"version": "7.0.2",
 	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./dist/caf.js",
 	"scripts": {
