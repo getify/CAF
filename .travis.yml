@@ -1,8 +1,8 @@
 sudo: false
 language: node_js
 node_js:
-  - 7
   - 8
+  - 10
 env:
   - TEST_PACKAGE=true
 branches:
