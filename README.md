@@ -6,7 +6,7 @@
 [![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf?type=dev)
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
 
-**CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancelation. In this way, you can express flows of asynchronous logic that are cancelable (**C**ancelable **A**sync **F**lows).
+**CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancelation via tokens. In this way, you can express flows of synchronous-looking asynchronous logic that are still cancelable (**C**ancelable **A**sync **F**lows).
 
 ## Environment Support
 
@@ -14,7 +14,7 @@ This utility uses ES6 (aka ES2015) features. If you need to support environments
 
 ## At A Glance
 
-**CAF** (**C**ancelable **A**sync **F**lows) wraps a `function*` generator so it behaves like an `async function` that can be externally canceled using a cancelation token:
+**CAF** (**C**ancelable **A**sync **F**lows) wraps a `function*` generator so it looks and behaves like an `async function`, but that can be externally canceled using a cancelation token:
 
 ```js
 var token = new CAF.cancelToken();
@@ -29,12 +29,12 @@ var main = CAF( function *main(signal,url){
     return resp;
 } );
 
-// run the fake async function, listen to its
+// run the wrapped async-looking function, listen to its
 // returned promise
 main( token.signal, "http://some.tld/other" )
 .then( onResponse, onCancelOrError );
 
-// only wait 5 seconds for the request!
+// only wait 5 seconds for the ajax request!
 setTimeout( function onElapsed(){
     token.abort( "Request took too long!" );
 }, 5000 );
@@ -42,7 +42,7 @@ setTimeout( function onElapsed(){
 
 Create a cancelation token (via `new CAF.cancelToken()`) to pass into your wrapped `function*` generator, and then if you cancel the token, the `function*` generator will abort itself immediately, even if it's presently waiting on a promise to resolve.
 
-Moreover, the generator itself is provided the cancelation token's `signal`, so you can call another `function*` generator via **CAF** and pass along that shared `signal`. In this way, a single cancelation signal can cascade across all the **CAF**-wrapped functions in the chain of execution:
+The generator receives the cancelation token's `signal`, so from inside it you can call another `function*` generator via **CAF** and pass along that shared `signal`. In this way, a single cancelation signal can cascade across and cancel all the **CAF**-wrapped functions in a chain of execution:
 
 ```js
 var token = new CAF.cancelToken();
@@ -69,25 +69,25 @@ setTimeout( function onElapsed(){
 
 In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and waits on `three(..)`, and `three(..)` calls and waits on `ajax(..)`. Because the same cancelation token is used for the 3 generators, if `token.abort()` is executed while they're all still paused, they will all immediately abort.
 
-**Note:** In this example, the cancelation token has no effect on the actual `ajax(..)` call itself, since that utility ostensibly doesn't provide cancelation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancelation Signal Handling](#manual-cancelation-signal-handling) below for addressing this concern.
+**Note:** The cancelation token has no effect on the actual `ajax(..)` call itself here, since that utility ostensibly doesn't provide cancelation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancelation Signal Handling](#manual-cancelation-signal-handling) below for addressing this limitation.
 
 ## Background/Motivation
 
 Generally speaking, an `async function` and a `function*` generator (driven with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/master/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look very similar. For that reason, most people just prefer the `async function` form since it's a little nicer syntax and doesn't require a library for the runner.
 
-However, there are limitations to `async function`s from having the syntax and engine make implicit assumptions that otherwise you would have explicitly handled in a `function*` generator runner.
+However, there are limitations to `async function`s that come from having the syntax and engine make implicit assumptions that otherwise would have been handled by a `function*` generator runner.
 
-One clear example of these limitations is that an `async function` cannot be externally canceled once it starts running. If you want to cancel it, you have to intrusively modify its definition to have it consult an external value source -- like a boolean or promise -- at each line that you care about being a cancelation point. This is ugly and error-prone.
+One unfortunate limitation is that an `async function` cannot be externally canceled once it starts running. If you want to be able to cancel it, you have to intrusively modify its definition to have it consult an external value source -- like a boolean or promise -- at each line that you care about being a potential cancelation point. This is ugly and error-prone.
 
 `function*` generators by contrast can be aborted at any time, using the iterator's `return(..)` method and/or by just not resuming the generator iterator instance with `next()`. But the downside of using `function*` generators is either needing a runner utility or the repetitive boilerplate of handling the iterator manually.
 
-The best solution is a `function*` generator that can be called like a normal `async function`, but which supports a cancelation token. That's what **CAF** is.
+**CAF** provides a useful compromise: a `function*` generator that can be called like a normal `async function`, but which supports a cancelation token.
 
-The `CAF(..)` utility wraps a `function*` generator with a normal promise-returing function, just as if it was a normal `async function`. Other than minor syntactic aesthetics, the most observable difference is that a **CAF**-wrapped function must be provided a cancelation token's `signal` as its first argument, with any other arguments passed subsequent, as desired.
+The `CAF(..)` utility wraps a `function*` generator with a normal promise-returing function, just as if it was an `async function`. Other than minor syntactic aesthetics, the major observable difference is that a **CAF**-wrapped function must be provided a cancelation token's `signal` as its first argument, with any other arguments passed subsequent, as desired.
 
 ## Overview
 
-These two functions are essentially equivalent; `one(..)` is an actual `async function`, whereas `two(..)` will behave like an async function in that it also returns a promise:
+In the following snippet, the two functions are essentially equivalent; `one(..)` is an actual `async function`, whereas `two(..)` is a wrapper around a generator, but will behave like an async function in that it also returns a promise:
 
 ```js
 async function one(v) {
@@ -156,22 +156,22 @@ The `main(..)` function delays for `100`ms and then completes. But there's no lo
 
 Of course, the `token.abort(..)` call at that point is moot, and is thus silently ignored. But the problem is the timer still running, which keeps a Node.js process alive even if the rest of the program has completed. The symptoms of this would be running a Node.js program from the command line and observing it "hang" for a bit at the end instead of exiting right away. Try the above code to see this in action.
 
-So there's two problems if you want to avoid this downside:
+There's two complications that make avoiding this downside tricky:
 
-1. The `delay(..)` helper shown, which is a promisified version of `setTimeout(..)`, is basically what you can produce by using [Node.js's `util.promisify(..)`](https://nodejs.org/dist/latest-v8.x/docs/api/util.html#util_util_promisify_original) against `setTimeout(..)`. However, that timer itself is not cancelable. You can't access the timer handle (return value from `setTimeout(..)`) to call `clearTimeout(..)` on it.
+1. The `delay(..)` helper shown, which is a promisified version of `setTimeout(..)`, is basically what you can produce by using [Node.js's `util.promisify(..)`](https://nodejs.org/dist/latest-v8.x/docs/api/util.html#util_util_promisify_original) against `setTimeout(..)`. However, that timer itself is not cancelable. You can't access the timer handle (return value from `setTimeout(..)`) to call `clearTimeout(..)` on it. So, you can't stop the timer early even if you wanted to.
 
-2. If you set up your own timer externally, you need to keep track of the timer's handle so you can call `clearTimeout(..)` if the async task completes successfully before the timeout expires. This is manual and error-prone, as it's far too easy to forget.
+2. If instead you set up your own timer externally, you need to keep track of the timer's handle so you can call `clearTimeout(..)` if the async task completes successfully before the timeout expires. This is manual and error-prone, as it's far too easy to forget.
 
-To avoid requiring you to invent solutions to these problems, **CAF** provides two utilities for managing cancelable delays and timeout cancelations: `CAF.delay(..)` and `CAF.timeout(..)`.
+Instead of inventing solutions to these problems, **CAF** provides two utilities for managing cancelable delays and timeout cancelations: `CAF.delay(..)` and `CAF.timeout(..)`.
 
 #### `CAF.delay(..)`
 
-What we need is a promisified `setTimeout(..)` that can still be canceled. That's what we get with the  `CAF.delay(..)` utility:
+What we need is a promisified `setTimeout(..)`, like `delay(..)` we saw in the previous section, but that can still be canceled. `CAF.delay(..)`  provides us such functionality:
 
 ```js
 var discardTimeout = new CAF.cancelToken();
 
-// wait 5 seconds
+// a promise that waits 5 seconds
 CAF.delay( discardTimeout.signal, 5000 )
 .then(
     function onElapsed(msg){
@@ -183,17 +183,18 @@ CAF.delay( discardTimeout.signal, 5000 )
 );
 ```
 
-As you can see, `CAF.delay(..)` receives a cancelation token signal to cancel the timeout early when needed. If you need to cancel the timeout:
+As you can see, `CAF.delay(..)` receives a cancelation token signal to cancel the timeout early when needed. If you need to cancel the timeout early, abort the cancelation token:
 
 ```js
 discardTimeout.abort();     // cancel the `CAF.delay()` timeout
 ```
 
-The promise returned from `CAF.delay(..)` is fulfilled if the full time amount elapses, with a message such as `"delayed: 5000"`. If the timeout is aborted via the cancelation token, the promise is rejected with a reason like `"delay (5000) interrupted"`.
+The promise returned from `CAF.delay(..)` is fulfilled if the full time amount elapses, with a message such as `"delayed: 5000"`. But if the timeout is aborted via the cancelation token, the promise is rejected with a reason like `"delay (5000) interrupted"`.
 
-Passing the cancelation token to `CAF.delay(..)` is optional; if omitted, `CAF.delay(..)` works just like a basic promisified `setTimeout(..)`:
+Passing the cancelation token to `CAF.delay(..)` is optional; if omitted, `CAF.delay(..)` works just like a regular promisified `setTimeout(..)`:
 
 ```
+// promise that waits 200 ms
 CAF.delay( 200 )
 .then( function onElapsed(){
     console.log( "Some time went by!" );
@@ -202,7 +203,7 @@ CAF.delay( 200 )
 
 #### `CAF.timeout(..)`
 
-While `CAF.delay(..)` provides a cancelable timeout promise, it's still overly manual to connect the dots between a **CAF**-wrapped function and the timeout-abort process. **CAF** provides `CAF.timeout(..)` to streamline this use-case:
+While `CAF.delay(..)` provides a cancelable timeout promise, it's still overly manual to connect the dots between a **CAF**-wrapped function and the timeout-abort process. **CAF** provides `CAF.timeout(..)` to streamline this common use-case:
 
 ```js
 var timeoutToken = CAF.timeout( 5000, "Took too long!" );
@@ -212,20 +213,20 @@ var main = CAF( function *main(signal,ms){
     console.log( "All done!" );
 } );
 
-main( timeoutToken, 100 );  // NOTE: passing the token and not the .signal !!
+main( timeoutToken, 100 );   // NOTE: pass the whole token, not just the .signal !!
 ```
 
 `CAF.timeout(..)` creates an instance of `cancelationToken(..)` that's set to `abort()` after the specified amount of time, optionally using the cancelation reason you provide.
 
-Note that you should pass the full `timeoutToken` token to the **CAF**-wrapped function (`main(..)`), instead of how you normally just pass `timeoutToken.signal`. By doing so, **CAF** wires the token and the **CAF**-wrapped function together, so that each one stops the other, whichever one happens first. No more hanging timeouts!
+Note that you should pass the full `timeoutToken` token to the **CAF**-wrapped function (`main(..)`), instead of just passing `timeoutToken.signal`. By doing so, **CAF** wires the token and the **CAF**-wrapped function together, so that each one stops the other, whichever one happens first. No more hanging timeouts!
 
-Also note that `main(..)` still receives the `signal` as its first parameter, which is suitable to pass along to other cancelable async functions, such as `CAF.delay(..)` as shown.
+Also note that `main(..)` still receives just the `signal` as its first argument, which is suitable to pass along to other cancelable async functions, such as `CAF.delay(..)` as shown.
 
 `timeoutToken` is a regular cancelation token as created by `CAF.cancelToken()`. As such, you can call `abort(..)` on it directly, if necessary. You can also access `timeoutToken.signal` to access its signal, and `timeoutToken.signal.pr` to access the promise that's rejected when the signal is aborted.
 
 ### `finally { .. }`
 
-Canceling a **CAF**-wrapped `function*` generator that is paused causes it to abort right away, but if there's a pending `finally {..}` clause, that will still have a chance to run.
+Canceling a **CAF**-wrapped `function*` generator that is paused causes it to abort right away, but if there's a pending `finally {..}` clause, it will always still have a chance to run.
 
 Moreover, a `return` of any non-`undefined` value in that pending `finally {..}` clause will override the promise rejection reason:
 
@@ -242,7 +243,7 @@ var main = CAF( function *main(signal,url){
 } );
 
 main( token.signal, "http://some.tld/other" )
-.catch( console.log );   // 42 <-- not "Aborting!"
+.catch( console.log );     // 42 <-- not "Aborting!"
 
 token.abort( "Aborting!" );
 ```
