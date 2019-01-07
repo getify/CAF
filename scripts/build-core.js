@@ -2,7 +2,7 @@
 
 var fs = require("fs"),
 	path = require("path"),
-	// ugly = require("uglify-js"),
+	ugly = require("terser"),
 	packageJSON,
 	copyrightHeader,
 	version,
@@ -31,21 +31,25 @@ try {
 	catch (err) { }
 
 	result += fs.readFileSync(POLYFILL_SRC,{ encoding: "utf8" });
-	result += "\n" + fs.readFileSync(CORE_SRC,{ encoding: "utf8" });
+	result += `\n${fs.readFileSync(CORE_SRC,{ encoding: "utf8" })}`;
 
-	// NOTE: since uglify doesn't yet support ES6, no minifying happening :(
+	result = ugly.minify(result,{
+		mangle: {
+			keep_fnames: true
+		},
+		compress: {
+			keep_fnames: true
+		},
+		output: {
+			comments: /^!/
+		}
+	});
 
-	// result = ugly.minify(path.join(SRC_DIR,"caf.src.js"),{
-	// 	mangle: {
-	// 		keep_fnames: true
-	// 	},
-	// 	compress: {
-	// 		keep_fnames: true
-	// 	},
-	// 	output: {
-	// 		comments: /^!/
-	// 	}
-	// });
+	// was compression successful?
+	if (!(result && result.code)) {
+		if (result.error) throw result.error;
+		else throw result;
+	}
 
 	// read version number from package.json
 	packageJSON = JSON.parse(
@@ -64,10 +68,10 @@ try {
 	copyrightHeader = Function("version","year",`return \`${copyrightHeader}\`;`)( version, year );
 
 	// append copyright-header text
-	result = copyrightHeader + result;
+	result = `${copyrightHeader}${result.code}`;
 
 	// write dist
-	fs.writeFileSync( CORE_DIST, result /* result.code + "\n" */, { encoding: "utf8" } );
+	fs.writeFileSync( CORE_DIST, result, { encoding: "utf8" } );
 
 	console.log("Complete.");
 }
