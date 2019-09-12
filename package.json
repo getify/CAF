@@ -17,6 +17,7 @@
 		"publish": "npm run coverage:report"
 	},
 	"devDependencies": {
+		"abortcontroller-polyfill": "~1.3.0",
 		"coveralls": "~3.0.0",
 		"qunit": "~2.9.1",
 		"terser": "~3.14.1"

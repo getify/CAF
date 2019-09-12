@@ -10,10 +10,8 @@ var fs = require("fs"),
 
 	ROOT_DIR = path.join(__dirname,".."),
 	SRC_DIR = path.join(ROOT_DIR,"src"),
-	LIB_DIR = path.join(ROOT_DIR,"lib"),
 	DIST_DIR = path.join(ROOT_DIR,"dist"),
 
-	POLYFILL_SRC = path.join(LIB_DIR,"abortcontroller-polyfill-modified.js"),
 	CORE_SRC = path.join(SRC_DIR,"caf.src.js"),
 	CORE_DIST = path.join(DIST_DIR,"caf.js"),
 
@@ -30,8 +28,7 @@ try {
 	}
 	catch (err) { }
 
-	result += fs.readFileSync(POLYFILL_SRC,{ encoding: "utf8" });
-	result += `\n${fs.readFileSync(CORE_SRC,{ encoding: "utf8" })}`;
+	result += fs.readFileSync(CORE_SRC,{ encoding: "utf8" });
 
 	result = ugly.minify(result,{
 		mangle: {

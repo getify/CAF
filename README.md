@@ -270,7 +270,7 @@ main( token.signal, "http://some.tld/other" )
 token.abort( "Aborting!" );
 ```
 
-**Note:** If the standard `AbortController` is not defined in the environment, it's [polyfilled](https://github.com/mo/abortcontroller-polyfill) by **CAF**. But in such a case, `fetch(..)` and other such DOM methods will likely not actually respond to the cancelation signal.
+**Note:** If the standard `AbortController` is not defined in the environment, you should use the [polyfill](https://github.com/mo/abortcontroller-polyfill).
 
 ### Manual Cancelation Signal Handling
 

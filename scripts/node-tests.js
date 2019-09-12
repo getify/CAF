@@ -2,6 +2,8 @@
 
 var path = require("path");
 
+require(path.join("..","node_modules","abortcontroller-polyfill","dist","abortcontroller-polyfill-only.js"));
+
 /* istanbul ignore next */
 if (process.env.TEST_DIST) {
 	global.CAF = require(path.join("..","dist","caf.js"));
@@ -11,7 +13,6 @@ else if (process.env.TEST_PACKAGE) {
 	global.CAF = require(path.join(".."));
 }
 else {
-	require(path.join("..","lib","abortcontroller-polyfill-modified.js"));
 	global.CAF = require(path.join("..","src","caf.src.js"));
 }
 
