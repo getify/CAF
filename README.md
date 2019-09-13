@@ -55,7 +55,7 @@ var two = CAF( function *two(signal,v){
     return yield three( signal, v );
 } );
 
-var three = CAF( function* three(signal,v){
+var three = CAF( function *three(signal,v){
     return yield ajax( `http://some.tld/?v=${v}` );
 } );
 
