@@ -6,13 +6,17 @@
 	"use strict";
 
 	class cancelToken {
-		constructor() {
-			this.controller = new AbortController();
-			this.signal = this.controller.signal;
+		constructor(controller = new AbortController()) {
+			this.controller = controller;
+			this.signal = controller.signal;
 			// note: => arrow function used here for lexical this
-			this.signal.pr = new Promise((_,rej)=>this.rej = rej);
+			var handleReject = (res,rej) => {
+				once(this.signal,"abort",rej);
+				this.rej = rej;
+			};
+			this.signal.pr = new Promise(handleReject);
 			// silence unhandled rejection warnings
-			this.signal.pr.catch(Function.prototype);
+			this.signal.pr.catch(v=>v);
 		}
 		abort(reason) {
 			this.rej(reason);
@@ -22,9 +26,14 @@
 
 	const TIMEOUT_TOKEN = Symbol("Timeout Token");
 
-	CAF.cancelToken = cancelToken;
-	CAF.delay = delay;
-	CAF.timeout = timeout;
+	// assign public API to CAF namespace
+	Object.assign(CAF,{
+		cancelToken,
+		delay,
+		timeout,
+		signalRace,
+		signalAll,
+	});
 
 	return CAF;
 
@@ -33,25 +42,24 @@
 
 	function CAF(generatorFn) {
 		return function instance(tokenOrSignal,...args){
-			var signal = (tokenOrSignal instanceof cancelToken) ?
-				tokenOrSignal.signal :
-				tokenOrSignal;
+			var signal, signalPr;
+			({ tokenOrSignal, signal, signalPr, } = processTokenOrSignal(tokenOrSignal));
 
 			// already aborted?
 			if (signal.aborted) {
-				return signal.pr;
+				return signalPr;
 			}
 			// listen for abort signal
-			var cancelation = signal.pr.catch(function onCancelation(reason){
+			var cancelation = signalPr.catch(function onCancelation(reason){
 				try {
 					var ret = it.return();
-					throw (ret.value !== undefined ? ret.value : reason);
+					throw ((ret.value !== undefined) ? ret.value : reason);
 				}
 				// clean up memory
 				finally { it = result = cancelation = completion = null; }
 			});
-			var { it, result } = _runner.call(this,generatorFn,signal,...args);
-			var completion = Promise.race([ result, cancelation ]);
+			var { it, result, } = _runner.call(this,generatorFn,signal,...args);
+			var completion = Promise.race([ result, cancelation, ]);
 			if (
 				// cancelation token passed in?
 				tokenOrSignal !== signal &&
@@ -60,8 +68,8 @@
 			) {
 				// cancel timeout upon instance completion
 				completion.then(
-					function t(){tokenOrSignal.abort();},
-					function c(){tokenOrSignal.abort();}
+					function t(){ tokenOrSignal.abort(); },
+					function c(){ tokenOrSignal.abort(); }
 				);
 			}
 			else {
@@ -80,21 +88,22 @@
 			typeof ms != "number"
 		) {
 			// swap arguments
-			[ms,tokenOrSignal] = [tokenOrSignal,ms];
+			[ms,tokenOrSignal,] = [tokenOrSignal,ms,];
 		}
 
-		var signal = (tokenOrSignal && tokenOrSignal instanceof cancelToken) ?
-			tokenOrSignal.signal :
-			tokenOrSignal;
+		var signal, signalPr;
+		if (tokenOrSignal) {
+			({ tokenOrSignal, signal, signalPr, } = processTokenOrSignal(tokenOrSignal));
+		}
 
 		// already aborted?
 		if (signal && signal.aborted) {
-			return signal.pr;
+			return signalPr;
 		}
 
 		return new Promise(function c(res,rej){
 			if (signal) {
-				signal.pr.catch(function onAbort(){
+				signalPr.catch(function onAbort(){
 					if (intv) {
 						clearTimeout(intv);
 						rej(`delay (${ms}) interrupted`);
@@ -131,6 +140,51 @@
 			timeoutToken.abort(message);
 			timeoutToken = null;
 		}
+	}
+
+	function signalRace(signals) {
+		var token = new cancelToken();
+		Promise.race(signals.map(getSignalPr)).catch(token.abort.bind(token));
+		return token.signal;
+	}
+
+	function signalAll(signals) {
+		var token = new cancelToken();
+		var prs = signals.map(function normalize(signal){
+			return getSignalPr(signal).catch(e => e);
+		});
+		Promise.all(prs).then(token.abort.bind(token));
+		return token.signal;
+	}
+
+	function getSignalPr(signal) {
+		return (
+			signal.pr ||
+			new Promise(function c(res,rej){
+				once(signal,"abort",rej);
+			})
+		);
+	}
+
+	function once(obj,evtName,fn) {
+		obj.addEventListener(evtName,function onEvt(...args){
+			obj.removeEventListener(evtName,onEvt);
+			fn(...args);
+		});
+	}
+
+	function processTokenOrSignal(tokenOrSignal) {
+		// received a raw AbortController?
+		if (tokenOrSignal instanceof AbortController) {
+			tokenOrSignal = new cancelToken(tokenOrSignal);
+		}
+
+		var signal = (tokenOrSignal && tokenOrSignal instanceof cancelToken) ?
+			tokenOrSignal.signal :
+			tokenOrSignal;
+		var signalPr = getSignalPr(signal);
+
+		return { tokenOrSignal, signal, signalPr, };
 	}
 
 	// thanks to Benjamin Gruenbaum (@benjamingr on GitHub) for
@@ -190,7 +244,7 @@
 					nextResult = null; // clean up memory
 					return prNext;
 				})(nextResult);
-			})()
+			})(),
 		};
 	}
 

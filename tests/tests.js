@@ -46,7 +46,7 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	}
 
 	var token = new CAF.cancelToken();
-	var obj = { x: "obj.x" };
+	var obj = { x: "obj.x", };
 
 	var rExpected = [
 		"obj.x",
@@ -70,6 +70,44 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	assert.verifySteps( rExpected, "check arguments to generator" );
 	assert.strictEqual( pActual, pExpected, "returns promise" );
 	assert.strictEqual( qActual, qExpected, "eventually returns 42" );
+} );
+
+QUnit.test( "CAF() + raw AbortController", async function test(assert){
+	function *main(signal,ms) {
+		assert.step(String(signal === ac.signal));
+		assert.step(String(signal.pr && typeof signal.pr == "object"));
+		yield CAF.delay(ms,signal);
+		assert.step("oops");
+	}
+
+	var ac = new AbortController();
+	main = CAF(main);
+
+	var rExpected = [
+		"true",
+		"true",
+		"caught 1",
+		"caught 2",
+	];
+
+	// var rActual;
+	try {
+		let pr = main(ac,20);
+		ac.abort();
+		await pr;
+	}
+	catch (err) {
+		assert.step("caught 1");
+	}
+	try {
+		await ac.signal.pr;
+	}
+	catch (err) {
+		assert.step("caught 2");
+	}
+
+	assert.expect( 5 ); // note: 1 assertions + 4 `step(..)` calls
+	assert.verifySteps( rExpected, "check AC and signal" );
 } );
 
 QUnit.test( "immediate exception rejection", async function test(assert){
@@ -104,7 +142,7 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 	function *main(signal,ms) {
 		for (let i = 0; i < 5; i++) {
 			assert.step(`step: ${i}`);
-			yield CAF.delay(ms);
+			yield CAF.delay(ms,signal);
 		}
 	}
 
@@ -118,7 +156,7 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 	];
 	var pExpected = "Quit!";
 
-	setTimeout(function(){
+	setTimeout(function t(){
 		token.abort("Quit!");
 	},50);
 
@@ -140,7 +178,7 @@ QUnit.test( "cancelation + finally", async function test(assert){
 		try {
 			for (let i = 0; i < 5; i++) {
 				assert.step(`step: ${i}`);
-				yield CAF.delay(ms);
+				yield CAF.delay(ms,signal);
 			}
 		}
 		finally {
@@ -158,7 +196,7 @@ QUnit.test( "cancelation + finally", async function test(assert){
 	];
 	var pExpected = 42;
 
-	setTimeout(function(){
+	setTimeout(function t(){
 		token.abort();
 	},50);
 
@@ -179,7 +217,7 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	function *main(signal,ms) {
 		try {
 			assert.step("main: 1");
-			yield CAF.delay(ms);
+			yield CAF.delay(ms,signal);
 
 			var x = yield secondary(signal,ms,2);
 			assert.step(`main: ${x}`);
@@ -195,7 +233,7 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	function *secondary(signal,ms,v) {
 		try {
 			assert.step(`secondary: ${v}`);
-			yield CAF.delay(ms);
+			yield CAF.delay(ms,signal);
 			return v;
 		}
 		finally {
@@ -218,7 +256,7 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	];
 	var pExpected = "Quit!";
 
-	setTimeout(function(){
+	setTimeout(function t(){
 		token.abort("Quit!");
 	},50);
 
@@ -237,20 +275,20 @@ QUnit.test( "cascading cancelation", async function test(assert){
 
 QUnit.test( "cancelation rejection ordering", async function test(assert){
 	function *main(signal,ms) {
-		signal.pr.catch(()=>assert.step("main:signal.pr.catch"));
+		signal.pr.catch(function c(){ assert.step("main:signal.pr.catch"); });
 
 		assert.step("main: 1");
 		var pr = secondary(signal,ms);
-		pr.catch(()=>assert.step("main:pr.catch"));
+		pr.catch(function c(){ assert.step("main:pr.catch"); });
 		yield pr;
 		assert.step("main: shouldn't happen");
 	}
 
 	function *secondary(signal,ms) {
-		signal.pr.catch(()=>assert.step("secondary:signal.pr.catch"));
+		signal.pr.catch(function c() { assert.step("secondary:signal.pr.catch"); });
 
-		assert.step(`secondary: 1`);
-		yield CAF.delay(ms);
+		assert.step("secondary: 1");
+		yield CAF.delay(ms,signal);
 		assert.step("secondary: shouldn't happen");
 	}
 
@@ -268,14 +306,14 @@ QUnit.test( "cancelation rejection ordering", async function test(assert){
 	];
 	var pExpected = "Quit!";
 
-	setTimeout(function(){
+	setTimeout(function t(){
 		token.abort("Quit!");
 	},30);
 
 	// rActual;
 	try {
 		var pr = main(token.signal,50);
-		var x = pr.catch(()=>assert.step("outer:pr.catch"));
+		var x = pr.catch(function c() { assert.step("outer:pr.catch"); });
 		await x;
 		await pr;
 	}
@@ -311,7 +349,7 @@ QUnit.test( "already aborted", async function test(assert){
 
 	function *third(signal,ms) {
 		assert.step("third: 1");
-		yield CAF.delay(ms);
+		yield CAF.delay(ms,signal);
 		assert.step("third: 2");
 		return "end of third";
 	}
@@ -366,7 +404,7 @@ QUnit.test( "delay()", async function test(assert){
 		assert.step("main: 1");
 		yield CAF.delay(null,ms);
 		assert.step("main: 2");
-		var result = yield CAF.delay(ms);
+		var result = yield CAF.delay(ms,signal);
 		assert.step("main: 3");
 		return result;
 	}
@@ -375,7 +413,7 @@ QUnit.test( "delay()", async function test(assert){
 		assert.step("secondary: 1");
 		yield CAF.delay(null,ms);
 		assert.step("secondary: 2");
-		var result = yield CAF.delay(ms);
+		var result = yield CAF.delay(ms,signal);
 		assert.step("secondary: 3");
 		return result;
 	}
@@ -453,7 +491,7 @@ QUnit.test( "timeout()", async function test(assert){
 	var timeoutToken2 = new CAF.timeout(75,"timeout 2");
 	var timeoutToken3 = new CAF.timeout();
 	timeoutToken3.abort("timeout 3");
-	timeoutToken3.abort("timeout 3!");
+	timeoutToken3.abort("timeout 3!!!!!");
 
 	main = CAF(main);
 	secondary = CAF(secondary);
@@ -492,6 +530,101 @@ QUnit.test( "timeout()", async function test(assert){
 	assert.strictEqual( pActual, pExpected, "main: result" );
 	assert.strictEqual( qActual, qExpected, "secondary: result" );
 	assert.strictEqual( tActual, tExpected, "third: result" );
+} );
+
+QUnit.test( "signalRace()", async function test(assert){
+	function *main(signal,ms) {
+		assert.step("main: 1");
+		yield CAF.delay(signal,ms);
+		assert.step("main: 2");
+		yield CAF.delay(signal,ms);
+		assert.step("main: shouldn't get here");
+		return "shouldn't return this value";
+	}
+
+	var ac = new AbortController();
+	CAF.delay(60).then(function t(){ ac.abort(); });
+	var timeoutToken1 = new CAF.timeout(90);
+	var timeoutToken2 = new CAF.timeout(45,"Timeout2");
+
+	main = CAF(main);
+
+	var rExpected = [
+		"main: 1",
+		"main: 2",
+	];
+	var pExpected = "Timeout2";
+
+	// rActual;
+	var pActual = main(
+		CAF.signalRace([
+			timeoutToken1.signal,
+			ac.signal,
+			timeoutToken2.signal,
+		]),
+		30
+	);
+
+	try {
+		await pActual;
+	}
+	catch (err) {
+		pActual = err.toString();
+	}
+
+	assert.expect( 4 ); // note: 2 assertions + 2 `step(..)` calls
+	assert.verifySteps( rExpected, "signal race() flow control" );
+	assert.strictEqual( pActual, pExpected, "main: result" );
+} );
+
+QUnit.test( "signalAll()", async function test(assert){
+	function *main(signal,ms) {
+		assert.step("main: 1");
+		yield CAF.delay(signal,ms);
+		assert.step("main: 2");
+		yield CAF.delay(signal,ms);
+		assert.step("main: shouldn't get here");
+		return "shouldn't return this value";
+	}
+
+	var ac = new AbortController();
+	CAF.delay(50).then(function t(){ ac.abort(); });
+	var timeoutToken1 = new CAF.timeout(60);
+	var timeoutToken2 = new CAF.timeout(25,"Timeout2");
+
+	main = CAF(main);
+
+	var rExpected = [
+		"main: 1",
+		"main: 2",
+	];
+	var pExpected = [
+		"Timeout",
+		"object",
+		"Timeout2",
+	];
+
+	// rActual;
+	var pActual = main(
+		CAF.signalAll([
+			timeoutToken1.signal,
+			ac.signal,
+			timeoutToken2.signal,
+		]),
+		40
+	);
+
+	try {
+		await pActual;
+	}
+	catch (err) {
+		pActual = err;
+		pActual[1] = typeof pActual[1];
+	}
+
+	assert.expect( 4 ); // note: 2 assertions + 2 `step(..)` calls
+	assert.verifySteps( rExpected, "signal all() flow control" );
+	assert.deepEqual( pActual, pExpected, "main: result" );
 } );
 
 

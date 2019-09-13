@@ -10,18 +10,17 @@ var fs = require("fs"),
 
 	ROOT_DIR = path.join(__dirname,".."),
 	SRC_DIR = path.join(ROOT_DIR,"src"),
-	LIB_DIR = path.join(ROOT_DIR,"lib"),
 	DIST_DIR = path.join(ROOT_DIR,"dist"),
 
-	POLYFILL_SRC = path.join(LIB_DIR,"abortcontroller-polyfill-modified.js"),
+	POLYFILL_SRC = path.join(ROOT_DIR,"node_modules","abortcontroller-polyfill","dist","abortcontroller-polyfill-only.js"),
+	POLYFILL_DIST = path.join(DIST_DIR,"abortcontroller-polyfill-only.js"),
 	CORE_SRC = path.join(SRC_DIR,"caf.src.js"),
 	CORE_DIST = path.join(DIST_DIR,"caf.js"),
 
-	result = ""
+	result
 ;
 
-console.log("*** Building Core ***");
-console.log(`Building: ${CORE_DIST}`);
+console.log("*** Building CAF ***");
 
 try {
 	// try to make the dist directory, if needed
@@ -30,48 +29,71 @@ try {
 	}
 	catch (err) { }
 
-	result += fs.readFileSync(POLYFILL_SRC,{ encoding: "utf8" });
-	result += `\n${fs.readFileSync(CORE_SRC,{ encoding: "utf8" })}`;
+	// first compress the polyfill
+	console.log(`Building: ${POLYFILL_DIST}`);
 
+	result = `${fs.readFileSync(POLYFILL_SRC,{ encoding: "utf8", })}`;
 	result = ugly.minify(result,{
 		mangle: {
-			keep_fnames: true
+			keep_fnames: true,
 		},
 		compress: {
-			keep_fnames: true
+			keep_fnames: true,
 		},
-		output: {
-			comments: /^!/
-		}
 	});
-
-	// was compression successful?
 	if (!(result && result.code)) {
 		if (result.error) throw result.error;
 		else throw result;
 	}
+	// append credit link
+	result = `// From: https://github.com/mo/abortcontroller-polyfill\n\n${result.code}`;
+	fs.writeFileSync(POLYFILL_DIST,result,{ encoding: "utf8", });
 
+
+	// *******************************
+
+
+	// now, compress the core lib
+	console.log(`Building: ${CORE_DIST}`);
+
+	result = `${fs.readFileSync(CORE_SRC,{ encoding: "utf8", })}`;
+	result = ugly.minify(result,{
+		mangle: {
+			keep_fnames: true,
+		},
+		compress: {
+			keep_fnames: true,
+		},
+		output: {
+			comments: /^!/,
+		},
+	});
+	if (!(result && result.code)) {
+		if (result.error) throw result.error;
+		else throw result;
+	}
 	// read version number from package.json
 	packageJSON = JSON.parse(
 		fs.readFileSync(
 			path.join(ROOT_DIR,"package.json"),
-			{ encoding: "utf8" }
+			{ encoding: "utf8", }
 		)
 	);
 	version = packageJSON.version;
-
 	// read copyright-header text, render with version and year
 	copyrightHeader = fs.readFileSync(
 		path.join(SRC_DIR,"copyright-header.txt"),
-		{ encoding: "utf8" }
+		{ encoding: "utf8", }
 	).replace(/`/g,"");
 	copyrightHeader = Function("version","year",`return \`${copyrightHeader}\`;`)( version, year );
-
 	// append copyright-header text
 	result = `${copyrightHeader}${result.code}`;
-
 	// write dist
-	fs.writeFileSync( CORE_DIST, result, { encoding: "utf8" } );
+	fs.writeFileSync(CORE_DIST,result,{ encoding: "utf8", });
+
+
+	// *******************************
+
 
 	console.log("Complete.");
 }
