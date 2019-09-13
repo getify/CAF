@@ -391,6 +391,8 @@ main( allSignals, "http://some.tld/other" );
 
 `CAF.signalAll(..)` expects an array of one or more signals, and returns a new signal (`allSignals`) that will fire only once all of the constituent signals have fired.
 
+**Warning:** This pattern (combining signals) has a potential downside. **CAF** typically cleans up timer-based cancel tokens to make sure resources aren't being wasted and programs aren't hanging with open timer handles. But in this pattern, `signalRace(..)` / `signalAll(..)` only receive reference(s) to the signal(s), not the cancel tokens themselves, so it cannot do the manual cleanup. In the above example, you should manually clean up the 5000ms timer by calling `timeout.abort()` if the operation finishes before that timeout has fired the cancellation.
+
 ### Beware Of Token Reuse
 
 Beware of creating a single cancellation token that is reused for separate chains of function calls. Unexpected results are likely, and they can be extremely difficult to debug.
