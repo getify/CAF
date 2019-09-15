@@ -300,7 +300,7 @@ If `AbortController` is not defined in the environment, use this [polyfill](http
 
 **Note:** The polyfill is automatically loaded (in the `global` namespace) when **CAF** is used is Node.
 
-Just be aware that if an environment needs the polyfill, `fetch(..)` and other such APIs won't know about `AbortController` so they won't recognize or respond to it. They won't break in its presence; they'll just ignore it.
+Just be aware that if an environment needs the polyfill, `fetch(..)` and other such APIs won't know about `AbortController` so they won't recognize or respond to it. They won't break in its presence; they'll just ignore it. But you can use [the fetch patching version](https://github.com/mo/abortcontroller-polyfill/#how-to-use) of the polyfill to "teach" fetch to abort requests.
 
 ### Manual Cancelation Signal Handling
 
