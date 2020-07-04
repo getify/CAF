@@ -627,6 +627,54 @@ QUnit.test( "signalAll()", async function test(assert){
 	assert.deepEqual( pActual, pExpected, "main: result" );
 } );
 
+QUnit.test( "checking aborted reason", async function test(assert){
+	var cancelReason = 'testing cancel req';
+	function *main(signal, ms) {
+		try {
+			for (let i = 0; i < 5; i++) {
+				assert.step(`step: ${i}`);
+				yield CAF.delay(ms,signal);
+			}
+		}
+		finally {
+			if (signal.aborted) {
+				assert.step("step: in canceled finally");
+				assert.strictEqual(signal.reason, cancelReason, 'unexpected cancel reason');
+			}
+			else {
+				assert.step("step: uhoh signal should be aborted");
+			}
+		}
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAF(main);
+
+	var rExpected = [
+		"step: 0",
+		"step: 1",
+		"step: 2",
+		"step: in canceled finally"
+	];
+	var pExpected = cancelReason;
+
+	setTimeout(function t(){
+		token.abort(cancelReason);
+	},50);
+
+	// rActual;
+	try {
+		await main(token.signal,20);
+	}
+	catch (err) {
+		var pActual = err;
+	}
+
+	assert.expect( 7 ); // note: 3 assertions + 4 `step(..)` calls
+	assert.verifySteps( rExpected, "ignore canceled after 3 iterations" );
+	assert.strictEqual( pActual, pExpected, "unexpected final result" );
+} );
+
 
 
 
