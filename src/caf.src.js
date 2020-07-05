@@ -11,7 +11,12 @@
 			this.signal = controller.signal;
 			// note: => arrow function used here for lexical this
 			var handleReject = (res,rej) => {
-				once(this.signal,"abort",rej);
+				once(this.signal, "abort", r => {
+					if (!("reason" in this.signal)) {
+						this.signal.reason = r;
+					}
+					rej(r);
+				});
 				this.rej = rej;
 			};
 			this.signal.pr = new Promise(handleReject);
