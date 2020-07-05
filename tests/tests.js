@@ -660,6 +660,8 @@ QUnit.test( "checking aborted reason", async function test(assert){
 
 	setTimeout(function t(){
 		token.abort(cancelReason);
+		// call abort a second time right away to make sure it doesn't change things
+		token.abort("uhoh reason");
 	},50);
 
 	// rActual;

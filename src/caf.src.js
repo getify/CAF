@@ -19,7 +19,9 @@
 			this.signal.pr.catch(v=>v);
 		}
 		abort(reason) {
-			this.signal.reason = reason;
+			if (!("reason" in this.signal)) {
+				this.signal.reason = reason;
+			}
 			this.rej(reason);
 			this.controller.abort();
 		}
