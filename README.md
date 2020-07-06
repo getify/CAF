@@ -226,9 +226,29 @@ Also note that `main(..)` still receives just the `signal` as its first argument
 
 ### `finally { .. }`
 
+`finally` clauses are often attached to a `try { .. }` block wrapped around the entire body of a function, even if there's no `catch` clause defined. The most common use of this pattern is to define some clean-up operations to be performed after the function is finished, whether that was from normal completion or an early termination (such as uncaught exceptions, or cancellation).
+
 Canceling a **CAF**-wrapped `function*` generator that is paused causes it to abort right away, but if there's a pending `finally {..}` clause, it will always still have a chance to run.
 
-Moreover, a `return` of any non-`undefined` value in that pending `finally {..}` clause will override the promise rejection reason:
+```js
+var token = new CAF.cancelToken();
+
+var main = CAF( function *main(signal,url){
+    try {
+        return yield ajax( url );
+    }
+    finally {
+        // perform some clean-up operations
+    }
+} );
+
+main( token.signal, "http://some.tld/other" )
+.catch( console.log );     // 42 <-- not "Stopped!"
+
+token.abort( "Stopped!" );
+```
+
+Moreover, a `return` of any non-`undefined` value in a pending `finally {..}` clause will override the promise rejection reason:
 
 ```js
 var token = new CAF.cancelToken();
@@ -248,7 +268,39 @@ main( token.signal, "http://some.tld/other" )
 token.abort( "Stopped!" );
 ```
 
-Whatever value is passed to `abort(..)`, if any, is normally set as the promise rejection reason. But in this case, `return 42` overrides the `"Stopped!"` rejection reason.
+Whatever value is passed to `abort(..)`, if any, is normally set as the overall promise rejection reason. But in this case, `return 42` overrides the `"Stopped!"` rejection reason.
+
+#### `signal.aborted` and `signal.reason`
+
+Standard [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) instances have an `aborted` boolean property that's set to `true` once the signal is aborted. Once aborted, CAF also extends signals to also include a `reason` property with the value (if any) passed to the [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)'s `abort(..)` call.
+
+**Note:** Passing a `reason` to an `abort(..)` call on a cancellation token is CAF-specific; calling `abort()` on a direct `AbortController` instance will ignore any passed-in value, though all the rest of the CAF cancellation mechanism still works. See the following [`AbortController`](#abortcontroller) section for more information.
+
+By checking the `signal.aborted` flag in a `finally` clause, you can determine whether the function was canceled, and then additionally access the `signal.reason` to determine more specific context information about why the cancellation occurred. This allows you to perform different clean-up operations depending on cancellation or normal completion:
+
+```js
+var token = new CAF.cancelToken();
+
+var main = CAF( function *main(signal,url){
+    try {
+        return yield ajax( url );
+    }
+    finally {
+        if (signal.aborted) {
+            console.log( `Cancellation reason: ${ signal.reason }` );
+            // perform cancellation-specific clean-up operations
+        }
+        else {
+            // perform non-cancellation clean-up operations
+        }
+    }
+} );
+
+main( token.signal, "http://some.tld/other" );
+// Cancellation reason: Stopped!
+
+token.abort( "Stopped!" );
+```
 
 ### `AbortController(..)`
 
