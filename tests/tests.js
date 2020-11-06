@@ -688,7 +688,6 @@ QUnit.test( "checking aborted reason exists + raw AbortController", async functi
 		finally {
 			if (signal.aborted) {
 				assert.step("step: in canceled finally");
-				assert.ok('reason' in signal, 'signal reason missing');
 			}
 		}
 	}
@@ -715,9 +714,52 @@ QUnit.test( "checking aborted reason exists + raw AbortController", async functi
 		var pActual = err;
 	}
 
-	assert.expect( 7 ); // note: 3 assertions + 4 `step(..)` calls
+	assert.expect( 6 ); // note: 2 assertions + 4 `step(..)` calls
 	assert.verifySteps( rExpected, "ignore canceled after 3 iterations" );
 	assert.ok( pActual && pActual.type === 'abort', "expected final abort event to be thrown" );
+} );
+
+QUnit.test( "discard()", async function test(assert){
+	function *main(signal,ms) {
+		assert.step("step 1");
+		yield CAF.delay(ms,signal);
+		assert.step("step 2");
+		yield CAF.delay(ms,signal);
+		assert.step("step 3");
+		yield CAF.delay(ms,signal);
+		assert.step("step 4");
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAF(main);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+	];
+
+	setTimeout(function t(){
+		token.discard();
+		token.discard();
+	},40);
+
+	setTimeout(function t(){
+		token.abort();
+	},50);
+
+	// rActual;
+	try {
+		await main(token,30);
+	}
+	catch (err) {
+		var pActual = err;
+	}
+
+	assert.expect( 6 ); // note: 2 assertions + 4 `step(..)` calls
+	assert.verifySteps( rExpected, "cancelation ignored because the token was discarded" );
+	assert.ok( pActual === undefined, "normal completion with no abort being thrown" );
 } );
 
 function _hasProp(obj,prop) {

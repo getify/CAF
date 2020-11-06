@@ -13,7 +13,7 @@ else if (process.env.TEST_PACKAGE) {
 }
 else {
 	require(path.join("..","dist","abortcontroller-polyfill-only.js"));
-	global.CAF = require(path.join("..","src","caf.src.js"));
+	global.CAF = require(path.join("..","src","caf.js"));
 }
 
 global.QUnit = require("qunit");

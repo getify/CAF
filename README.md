@@ -302,6 +302,22 @@ main( token.signal, "http://some.tld/other" );
 token.abort( "Stopped!" );
 ```
 
+### Memory Cleanup With `discard()`
+
+A cancelation token from CAF includes a `discard()` method which can be called at any time to fully unset any internal state in the token to allow proper GC (garbage collection) of any attached resources.
+
+When you are sure you're fully done with a cancelation token, it's a good idea to call `discard()` on it, and then unset the variable holding that reference:
+
+```js
+var token = new CAF.cancelToken();
+
+// later
+token.discard();
+token = null;
+```
+
+Once a token has been `discard()`ed, no further calls to `abort(..)` will be effective -- they will silently be ignored.
+
 ### `AbortController(..)`
 
 `CAF.cancelToken(..)` instantiates [`AbortController`, the DOM standard](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) for canceling/aborting operations like `fetch(..)` calls. As such, a **CAF** cancellation token's `signal` can be passed directly to a DOM method like `fetch(..)` to control its cancellation:
@@ -508,6 +524,12 @@ And to require it in a node script:
 
 ```js
 var CAF = require("caf");
+```
+
+As of version 10.0.0, the package is also available as an ES Module, and can be imported as so:
+
+```js
+import CAF from "caf/esm";
 ```
 
 ## Builds
