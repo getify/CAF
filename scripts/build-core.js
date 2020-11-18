@@ -83,7 +83,6 @@ console.log("*** Building CAF ***");
 
 		builds = buildModule(
 			{
-				from: "",
 				buildUMD: true,
 				buildESM: true,
 			},

@@ -1,6 +1,6 @@
 {
 	"name": "caf",
-	"version": "10.0.0",
+	"version": "10.0.1",
 	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./index.js",
 	"browser": "./src/caf.src.js",
@@ -20,12 +20,12 @@
 	"devDependencies": {
 		"abortcontroller-polyfill": "~1.5.0",
 		"coveralls": "~3.1.0",
-		"moduloze": "~0.4.2",
+		"moduloze": "~0.5.0",
 		"qunit": "~2.11.3",
 		"terser": "~5.3.8"
 	},
 	"mz-dependencies": {
-		"./caf.js": "CAF"
+		"caf.js": "CAF"
 	},
 	"exports": {
 		"./caf": "./src/caf.js",
