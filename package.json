@@ -1,6 +1,6 @@
 {
 	"name": "caf",
-	"version": "10.0.3",
+	"version": "10.0.4",
 	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./index.js",
 	"browser": "./src/caf.js",
@@ -9,7 +9,7 @@
 		"test:dist": "TEST_DIST=true npm test",
 		"test:package": "TEST_PACKAGE=true npm test",
 		"test:all": "npm test && npm run test:dist && npm run test:package",
-		"coverage": "istanbul cover -x \"dist/*.js\" -x \"scripts/*.js\" scripts/node-tests.js",
+		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text --exclude=**/abortcontroller-polyfill-only.js --exclude=**/tests --exclude=**/node-tests.js node scripts/node-tests.js",
 		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
 		"build-core": "node scripts/build-core.js",
 		"build": "npm run build-core",
@@ -21,7 +21,8 @@
 		"abortcontroller-polyfill": "~1.5.0",
 		"coveralls": "~3.1.0",
 		"moduloze": "~0.5.0",
-		"qunit": "~2.11.3",
+		"nyc": "~15.1.0",
+		"qunit": "~2.12.0",
 		"terser": "~5.3.8"
 	},
 	"mz-dependencies": {

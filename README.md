@@ -2,8 +2,6 @@
 
 [![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
 [![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
-[![Dependencies](https://david-dm.org/getify/caf.svg)](https://david-dm.org/getify/caf)
-[![devDependencies](https://david-dm.org/getify/caf/dev-status.svg)](https://david-dm.org/getify/caf?type=dev)
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
 
 **CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancellation via tokens. In this way, you can express flows of synchronous-looking asynchronous logic that are still cancelable (**C**ancelable **A**sync **F**lows).
@@ -69,11 +67,11 @@ setTimeout( function onElapsed(){
 
 In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and waits on `three(..)`, and `three(..)` calls and waits on `ajax(..)`. Because the same cancellation token is used for the 3 generators, if `token.abort()` is executed while they're all still paused, they will all immediately abort.
 
-**Note:** The cancellation token has no effect on the actual `ajax(..)` call itself here, since that utility ostensibly doesn't provide cancellation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancelation Signal Handling](#manual-cancellation-signal-handling) below for addressing this limitation.
+**Note:** The cancellation token has no effect on the actual `ajax(..)` call itself here, since that utility ostensibly doesn't provide cancellation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancellation Signal Handling](#manual-cancellation-signal-handling) below for addressing this limitation.
 
 ## Background/Motivation
 
-Generally speaking, an `async function` and a `function*` generator (driven with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/master/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look very similar. For that reason, most people just prefer the `async function` form since it's a little nicer syntax and doesn't require a library for the runner.
+Generally speaking, an `async function` and a `function*` generator (driven with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/1st-ed/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look very similar. For that reason, most people just prefer the `async function` form since it's a little nicer syntax and doesn't require a library for the runner.
 
 However, there are limitations to `async function`s that come from having the syntax and engine make implicit assumptions that otherwise would have been handled by a `function*` generator runner.
 
@@ -304,9 +302,9 @@ token.abort( "Stopped!" );
 
 ### Memory Cleanup With `discard()`
 
-A cancelation token from CAF includes a `discard()` method which can be called at any time to fully unset any internal state in the token to allow proper GC (garbage collection) of any attached resources.
+A cancellation token from CAF includes a `discard()` method which can be called at any time to fully unset any internal state in the token to allow proper GC (garbage collection) of any attached resources.
 
-When you are sure you're fully done with a cancelation token, it's a good idea to call `discard()` on it, and then unset the variable holding that reference:
+When you are sure you're fully done with a cancellation token, it's a good idea to call `discard()` on it, and then unset the variable holding that reference:
 
 ```js
 var token = new CAF.cancelToken();
@@ -370,7 +368,7 @@ If `AbortController` is not defined in the environment, use this [polyfill](http
 
 Just be aware that if an environment needs the polyfill, `fetch(..)` and other such APIs won't know about `AbortController` so they won't recognize or respond to it. They won't break in its presence; they'll just ignore it.
 
-### Manual Cancelation Signal Handling
+### Manual Cancellation Signal Handling
 
 Even if you aren't calling a cancellation signal-aware utility (like `fetch(..)`), you can still manually respond to the cancellation `signal` via its attached promise:
 
@@ -510,11 +508,11 @@ The underlying gotcha is that a cancellation token's `signal` has a single `pr` 
 
 The above snippet illustrates this problem with `signal.pr.catch(..)`, but any of the other ways of listening to a promise -- such as `yield` / `await`, `Promise.all(..)` / `Promise.race(..)`, etc -- are all susceptible to the unexpected behavior.
 
-The safe and proper approach is to always create a new cancellation token for each chain of **CAF**-wrapped function calls. For good measure, always unset any references to a token once it's no longer needed; thus, you won't accidentally reuse it, and the JS engine can properly garbage collect it.
+The safe and proper approach is to always create a new cancellation token for each chain of **CAF**-wrapped function calls. For good measure, always unset any references to a token once it's no longer needed, and make sure to call [`discard()`](#memory-cleanup-with-discard); thus, you won't accidentally reuse the token, and the JS engine can properly GC (garbage collect) it.
 
 ## npm Package
 
-Prior to version 4.0.0, the package name was "async-caf", but starting with version 4.0.0, the name has been simplified to "caf". So, to install this package from `npm`:
+To install this package from `npm`:
 
 ```
 npm install caf
@@ -541,19 +539,17 @@ The distribution library file (`dist/caf.js`) comes pre-built with the npm packa
 
 However, if you download this repository via Git:
 
-1. The included build utility (`scripts/build-core.js`) builds (and minifies) `dist/caf.js` from source. **The build utility expects Node.js version 6+.**
+1. The included build utility (`scripts/build-core.js`) builds (and minifies) `dist/caf.js` from source.
 
 2. To install the build and test dependencies, run `npm install` from the project root directory.
 
-    - **Note:** This `npm install` has the effect of running the build for you, so no further action should be needed on your part.
-
-4. To manually run the build utility with npm:
+3. To manually run the build utility with npm:
 
     ```
     npm run build
     ```
 
-5. To run the build utility directly without npm:
+4. To run the build utility directly without npm:
 
     ```
     node scripts/build-core.js
@@ -561,17 +557,13 @@ However, if you download this repository via Git:
 
 ## Tests
 
-A comprehensive test suite is included in this repository, as well as the npm package distribution. The default test behavior runs the test suite using `src/caf.src.js`.
+A test suite is included in this repository, as well as the npm package distribution. The default test behavior runs the test suite using the files in `src/`.
 
-1. You can run the tests in a browser by opening up `tests/index.html` (**requires ES6+ browser environment**).
+1. The tests are run with QUnit.
 
-2. The included Node.js test utility (`scripts/node-tests.js`) runs the test suite. **This test utility expects Node.js version 6+.**
+2. You can run the tests in a browser by opening up `tests/index.html`.
 
-3. Ensure the test dependencies are installed by running `npm install` from the project root directory.
-
-    - **Note:** Starting with npm v5, the test utility is **not** run automatically during this `npm install`. With npm v4, the test utility automatically runs at this point.
-
-4. To run the test utility with npm:
+3. To run the test utility with npm:
 
     ```
     npm test
@@ -579,13 +571,13 @@ A comprehensive test suite is included in this repository, as well as the npm pa
 
     Other npm test scripts:
 
-    * `npm run test:dist` will run the test suite against `dist/caf.js` instead of the default of `src/caf.src.js`.
+    * `npm run test:dist` will run the test suite against `dist/caf.js` instead of the default of `src/caf.js`.
 
-    * `npm run test:package` will run the test suite as if the package had just been installed via npm. This ensures `package.json`:`main` properly references `dist/caf.js` for inclusion.
+    * `npm run test:package` will run the test suite as if the package had just been installed via npm. This ensures `package.json`:`main` properly references the correct file for inclusion.
 
     * `npm run test:all` will run all three modes of the test suite.
 
-5. To run the test utility directly without npm:
+4. To run the test utility directly without npm:
 
     ```
     node scripts/node-tests.js
@@ -595,7 +587,7 @@ A comprehensive test suite is included in this repository, as well as the npm pa
 
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
 
-If you have [Istanbul](https://github.com/gotwarlost/istanbul) already installed on your system (requires v1.0+), you can use it to check the test coverage:
+If you have [NYC (Istanbul)](https://github.com/istanbuljs/nyc) already installed on your system (requires v14.1+), you can use it to check the test coverage:
 
 ```
 npm run coverage
@@ -603,14 +595,8 @@ npm run coverage
 
 Then open up `coverage/lcov-report/index.html` in a browser to view the report.
 
-To run Istanbul directly without npm:
-
-```
-istanbul cover scripts/node-tests.js
-```
-
 **Note:** The npm script `coverage:report` is only intended for use by project maintainers. It sends coverage reports to [Coveralls](https://coveralls.io/).
 
 ## License
 
-All code and documentation are (c) 2019 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
+All code and documentation are (c) 2019-2020 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
