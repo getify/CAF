@@ -2,7 +2,7 @@
 
 var fs = require("fs"),
 	path = require("path"),
-	ugly = require("terser"),
+	terser = require("terser"),
 	{ build: buildModule, } = require("moduloze"),
 	packageJSON,
 	knownDeps,
@@ -38,7 +38,7 @@ console.log("*** Building CAF ***");
 		console.log(`Building: ${POLYFILL_DIST}`);
 
 		result = `${fs.readFileSync(POLYFILL_SRC,{ encoding: "utf8", })}`;
-		result = await ugly.minify(result,{
+		result = await terser.minify(result,{
 			mangle: {
 				keep_fnames: true,
 			},
@@ -74,7 +74,7 @@ console.log("*** Building CAF ***");
 			path.join(SRC_DIR,"copyright-header.txt"),
 			{ encoding: "utf8", }
 		).replace(/`/g,"");
-		copyrightHeader = Function("version","year",`return \`${copyrightHeader}\`;`)( version, year );
+		copyrightHeader = copyrightHeader.replace(/#VERSION#/g,version).replace(/#YEAR#/g,year);
 
 		// now, convert and compress the core lib (UMD and ESM)
 		console.log(`Building: ${CORE_UMD_DIST}`);
@@ -91,7 +91,7 @@ console.log("*** Building CAF ***");
 			knownDeps
 		);
 
-		result = await ugly.minify(builds.umd.code,{
+		result = await terser.minify(builds.umd.code,{
 			mangle: {
 				keep_fnames: true,
 			},
@@ -107,14 +107,14 @@ console.log("*** Building CAF ***");
 			else throw result;
 		}
 		// append copyright-header text
-		result = `${copyrightHeader}${result.code}`;
+		result = `${copyrightHeader.replace(/#FILENAME#/g,path.basename(CORE_UMD_DIST))}${result.code}`;
 		// write dist
 		fs.writeFileSync(CORE_UMD_DIST,result,{ encoding: "utf8", });
 
 		// now, convert and compress the core lib (UMD and ESM)
 		console.log(`Building: ${CORE_ESM_DIST}`);
 
-		result = await ugly.minify(builds.esm.code,{
+		result = await terser.minify(builds.esm.code,{
 			mangle: {
 				keep_fnames: true,
 			},
@@ -130,7 +130,7 @@ console.log("*** Building CAF ***");
 			else throw result;
 		}
 		// append copyright-header text
-		result = `${copyrightHeader.replace("/*! caf.js","/*! caf.mjs")}${result.code}`;
+		result = `${copyrightHeader.replace(/#FILENAME#/g,path.basename(CORE_ESM_DIST))}${result.code}`;
 		// write dist
 		fs.writeFileSync(CORE_ESM_DIST,result,{ encoding: "utf8", });
 
