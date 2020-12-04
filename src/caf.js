@@ -1,63 +1,15 @@
 "use strict";
 
-class cancelToken {
-	constructor(controller = new AbortController()) {
-		this.controller = controller;
-		this.signal = controller.signal;
-		var cleanup;
-		// note: => arrow functions used here for lexical this
-		var handleReject = (res,rej) => {
-			var doRej = reason => {
-				if (rej) {
-					reason = (this.signal && this.signal.reason) ? this.signal.reason : reason;
-					rej(reason);
-					rej = null;
-				}
-			};
-			this.signal.addEventListener("abort",doRej,false);
-			cleanup = () => {
-				/* istanbul ignore else */
-				if (this.signal) {
-					this.signal.removeEventListener("abort",doRej,false);
-					/* istanbul ignore else */
-					if (this.signal.pr) {
-						this.signal.pr[CLEANUP_FN] = null;
-					}
-				}
-				doRej = null;
-			};
-		};
-		this.signal.pr = new Promise(handleReject);
-		this.signal.pr[CLEANUP_FN] = cleanup;
-		this.signal.pr.catch(cleanup);
-		handleReject = cleanup = null;
-	}
-	abort(reason) {
-		if (this.signal && !("reason" in this.signal)) {
-			this.signal.reason = reason;
-		}
-		if (this.controller) {
-			this.controller.abort();
-		}
-	}
-	discard() {
-		/* istanbul ignore else */
-		if (this.signal) {
-			/* istanbul ignore else */
-			if (this.signal.pr) {
-				/* istanbul ignore else */
-				if (this.signal.pr[CLEANUP_FN]) {
-					this.signal.pr[CLEANUP_FN]();
-				}
-				this.signal.pr = null;
-			}
-			this.signal = this.signal.reason = null;
-		}
-		this.controller = null;
-	}
-}
+var {
+	CLEANUP_FN,
+	TIMEOUT_TOKEN,
 
-// assign public API to CAF namespace
+	cancelToken,
+	signalPromise,
+	processTokenOrSignal,
+} = require("./shared.js");
+
+// assign public API as CAF namespace
 module.exports = Object.assign(CAF,{
 	cancelToken,
 	delay,
@@ -65,12 +17,11 @@ module.exports = Object.assign(CAF,{
 	signalRace,
 	signalAll,
 });
+module.exports.cancelToken = cancelToken;
 
 
 // ***************************************
 
-const TIMEOUT_TOKEN = Symbol("Timeout Token");
-const CLEANUP_FN = Symbol("Cleanup Function");
 
 function CAF(generatorFn) {
 	return function instance(tokenOrSignal,...args){
@@ -82,20 +33,20 @@ function CAF(generatorFn) {
 			return signalPr;
 		}
 		// listen for abort signal
-		var cancelation = signalPr.catch(function onCancelation(reason){
+		var cancellation = signalPr.catch(function onCancellation(reason){
 			try {
 				var ret = it.return();
 				throw ((ret.value !== undefined) ? ret.value : reason);
 			}
 			// clean up memory
 			finally {
-				it = result = cancelation = completion = null;
+				it = result = cancellation = completion = null;
 			}
 		});
-		var { it, result, } = _runner.call(this,generatorFn,signal,...args);
-		var completion = Promise.race([ result, cancelation, ]);
+		var { it, result, } = runner.call(this,generatorFn,signal,...args);
+		var completion = Promise.race([ result, cancellation, ]);
 		if (
-			// cancelation token passed in?
+			// cancellation token passed in?
 			tokenOrSignal !== signal &&
 			// recognized special timeout token?
 			tokenOrSignal[TIMEOUT_TOKEN]
@@ -140,10 +91,11 @@ function delay(tokenOrSignal,ms) {
 
 	return new Promise(function c(res,rej){
 		if (signal) {
-			signalPr.catch(function onAbort(){
+			signalPr.catch(function onAbort(reason){
 				if (intv) {
+					// console.log("reason",reason);
 					clearTimeout(intv);
-					rej(`delay (${ms}) interrupted`);
+					rej(reason || `delay (${ms}) interrupted`);
 				}
 				res = rej = intv = signal = null;
 			});
@@ -214,46 +166,9 @@ function signalAll(signals) {
 	return token.signal;
 }
 
-function signalPromise(signal) {
-	if (signal.pr) {
-		return signal.pr;
-	}
-
-	var doRej;
-	var pr = new Promise(function c(res,rej){
-		signal.addEventListener("abort",rej,false);
-		doRej = rej;
-	});
-	pr[CLEANUP_FN] = function cleanup(){
-		if (signal) {
-			signal.removeEventListener("abort",doRej,false);
-			signal = null;
-		}
-		if (pr) {
-			pr = pr[CLEANUP_FN] = doRej = null;
-		}
-	};
-	pr.catch(pr[CLEANUP_FN]);
-	return pr;
-}
-
-function processTokenOrSignal(tokenOrSignal) {
-	// received a raw AbortController?
-	if (tokenOrSignal instanceof AbortController) {
-		tokenOrSignal = new cancelToken(tokenOrSignal);
-	}
-
-	var signal = (tokenOrSignal && tokenOrSignal instanceof cancelToken) ?
-		tokenOrSignal.signal :
-		tokenOrSignal;
-	var signalPr = signalPromise(signal);
-
-	return { tokenOrSignal, signal, signalPr, };
-}
-
 // thanks to Benjamin Gruenbaum (@benjamingr on GitHub) for
 // big improvements here!
-function _runner(gen,...args) {
+function runner(gen,...args) {
 	// initialize the generator in the current context
 	var it = gen.apply(this,args);
 	gen = args = null; // clean up memory

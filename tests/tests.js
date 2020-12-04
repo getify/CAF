@@ -76,7 +76,7 @@ QUnit.test( "CAF() + raw AbortController", async function test(assert){
 	function *main(signal,ms) {
 		assert.step(String(signal === ac.signal));
 		assert.step(String(signal.pr && typeof signal.pr == "object"));
-		yield CAF.delay(ms,signal);
+		yield CAF.delay(signal,ms);
 		assert.step("oops");
 	}
 
@@ -142,7 +142,7 @@ QUnit.test( "cancelation + rejection", async function test(assert){
 	function *main(signal,ms) {
 		for (let i = 0; i < 5; i++) {
 			assert.step(`step: ${i}`);
-			yield CAF.delay(ms,signal);
+			yield CAF.delay(signal,ms);
 		}
 	}
 
@@ -178,7 +178,7 @@ QUnit.test( "cancelation + finally", async function test(assert){
 		try {
 			for (let i = 0; i < 5; i++) {
 				assert.step(`step: ${i}`);
-				yield CAF.delay(ms,signal);
+				yield CAF.delay(signal,ms);
 			}
 		}
 		finally {
@@ -217,7 +217,7 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	function *main(signal,ms) {
 		try {
 			assert.step("main: 1");
-			yield CAF.delay(ms,signal);
+			yield CAF.delay(signal,ms);
 
 			var x = yield secondary(signal,ms,2);
 			assert.step(`main: ${x}`);
@@ -233,7 +233,7 @@ QUnit.test( "cascading cancelation", async function test(assert){
 	function *secondary(signal,ms,v) {
 		try {
 			assert.step(`secondary: ${v}`);
-			yield CAF.delay(ms,signal);
+			yield CAF.delay(signal,ms);
 			return v;
 		}
 		finally {
@@ -288,7 +288,7 @@ QUnit.test( "cancelation rejection ordering", async function test(assert){
 		signal.pr.catch(function c() { assert.step("secondary:signal.pr.catch"); });
 
 		assert.step("secondary: 1");
-		yield CAF.delay(ms,signal);
+		yield CAF.delay(signal,ms);
 		assert.step("secondary: shouldn't happen");
 	}
 
@@ -349,7 +349,7 @@ QUnit.test( "already aborted", async function test(assert){
 
 	function *third(signal,ms) {
 		assert.step("third: 1");
-		yield CAF.delay(ms,signal);
+		yield CAF.delay(signal,ms);
 		assert.step("third: 2");
 		return "end of third";
 	}
@@ -404,7 +404,7 @@ QUnit.test( "delay()", async function test(assert){
 		assert.step("main: 1");
 		yield CAF.delay(null,ms);
 		assert.step("main: 2");
-		var result = yield CAF.delay(ms,signal);
+		var result = yield CAF.delay(signal,ms);
 		assert.step("main: 3");
 		return result;
 	}
@@ -413,7 +413,7 @@ QUnit.test( "delay()", async function test(assert){
 		assert.step("secondary: 1");
 		yield CAF.delay(null,ms);
 		assert.step("secondary: 2");
-		var result = yield CAF.delay(ms,signal);
+		var result = yield CAF.delay(signal,ms);
 		assert.step("secondary: 3");
 		return result;
 	}
@@ -600,7 +600,7 @@ QUnit.test( "signalAll()", async function test(assert){
 	];
 	var pExpected = [
 		"Timeout",
-		"object",
+		"undefined",
 		"Timeout2",
 	];
 
@@ -633,7 +633,7 @@ QUnit.test( "checking aborted reason", async function test(assert){
 		try {
 			for (let i = 0; i < 5; i++) {
 				assert.step(`step: ${i}`);
-				yield CAF.delay(ms,signal);
+				yield CAF.delay(signal,ms);
 			}
 		}
 		finally {
@@ -682,7 +682,7 @@ QUnit.test( "checking aborted reason exists + raw AbortController", async functi
 		try {
 			for (let i = 0; i < 5; i++) {
 				assert.step(`step: ${i}`);
-				yield CAF.delay(ms,signal);
+				yield CAF.delay(signal,ms);
 			}
 		}
 		finally {
@@ -711,22 +711,22 @@ QUnit.test( "checking aborted reason exists + raw AbortController", async functi
 		await main(ac,20);
 	}
 	catch (err) {
-		var pActual = err;
+		var pActual = (err === undefined) ? "ac.abort()" : err;
 	}
 
 	assert.expect( 6 ); // note: 2 assertions + 4 `step(..)` calls
 	assert.verifySteps( rExpected, "ignore canceled after 3 iterations" );
-	assert.ok( pActual && pActual.type === 'abort', "expected final abort event to be thrown" );
+	assert.ok( pActual && pActual === "ac.abort()", "expected final abort event to be thrown" );
 } );
 
 QUnit.test( "discard()", async function test(assert){
 	function *main(signal,ms) {
 		assert.step("step 1");
-		yield CAF.delay(ms,signal);
+		yield CAF.delay(signal,ms);
 		assert.step("step 2");
-		yield CAF.delay(ms,signal);
+		yield CAF.delay(signal,ms);
 		assert.step("step 3");
-		yield CAF.delay(ms,signal);
+		yield CAF.delay(signal,ms);
 		assert.step("step 4");
 	}
 
@@ -760,6 +760,324 @@ QUnit.test( "discard()", async function test(assert){
 	assert.expect( 6 ); // note: 2 assertions + 4 `step(..)` calls
 	assert.verifySteps( rExpected, "cancelation ignored because the token was discarded" );
 	assert.ok( pActual === undefined, "normal completion with no abort being thrown" );
+} );
+
+QUnit.test( "async-generator: loop iteration", async function test(assert){
+	function *main({ signal, pwait },ms) {
+		assert.step("step 1");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 2");
+		yield "step 3";
+		assert.step("step 4");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 5");
+		yield Promise.resolve("step 6");
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAG(main);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"step 5",
+		"step 6",
+	];
+
+	// var rActual;
+	for await (let msg of main(token,10)) {
+		assert.step(msg);
+	}
+
+	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: manual iteration", async function test(assert){
+	function *main({ signal, pwait },ms) {
+		assert.step("step 1");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 2");
+		var nextStep = yield "step 3";
+		assert.step(nextStep);
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 5");
+		yield Promise.resolve("step 6");
+		return "step 7";
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAG(main);
+	var it = main(token,10);
+	var res;
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"step 5",
+		"step 6",
+		"step 7",
+	];
+
+	// var rActual;
+	while (true) {
+		let ret = await it.next(res);
+		assert.step(ret.value);
+
+		if (ret.value == "step 3") {
+			res = "step 4";
+		}
+		else {
+			res = undefined;
+		}
+
+		if (ret.done) {
+			break;
+		}
+	}
+
+	assert.expect( 8 ); // note: 1 assertions + 7 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: iteration exception recovery", async function test(assert){
+	async function exception(signal,msg,ms) {
+		await CAF.delay(signal,ms);
+		throw msg;
+	}
+
+	function *main({ signal, pwait },ms) {
+		assert.step("step 1");
+		yield pwait(CAF.delay(signal,ms));
+		try {
+			yield pwait(exception(signal,"step 2",ms));
+		}
+		catch (err) {
+			assert.step(err);
+		}
+		yield "step 3";
+		assert.step("step 4");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 5");
+		yield Promise.resolve("step 6");
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAG(main);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"step 5",
+		"step 6",
+	];
+
+	try {
+		// var rActual;
+		for await (let msg of main(token,10)) {
+			assert.step(msg);
+		}
+	}
+	catch (err) {
+		console.log("wtf",err);
+	}
+
+	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: timeout aborted iteration", async function test(assert){
+	function *main({ signal, pwait },ms) {
+		assert.step("step 1");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 2");
+		yield "step 3";
+		assert.step("step 4");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("should not get here");
+	}
+
+	var token = new CAF.timeout(75);
+	main = CAG(main);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"Timeout",
+	];
+
+	try {
+		// var rActual;
+		for await (let msg of main(token,50)) {
+			assert.step(msg);
+		}
+	}
+	catch (err) {
+		assert.step(err);
+	}
+
+	assert.expect( 6 ); // note: 1 assertions + 5 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: token aborted iteration", async function test(assert){
+	function *main({ signal, pwait },ms) {
+		assert.step("step 1");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("step 2");
+		yield "step 3";
+		assert.step("step 4");
+		yield pwait(CAF.delay(signal,ms));
+		assert.step("should not get here");
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAG(main);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"Canceled!",
+		"Canceled!",
+	];
+
+	setTimeout(function waitToCancel(){
+		token.abort("Canceled!");
+	},75);
+
+	try {
+		// var rActual;
+		for await (let msg of main(token,50)) {
+			assert.step(msg);
+		}
+	}
+	catch (err) {
+		assert.step(err);
+	}
+
+	try {
+		main(token,50).next();
+	}
+	catch (err) {
+		assert.step(err);
+	}
+
+	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: abort-controller aborted iteration", async function test(assert){
+	function *main({ signal, pwait },ms) {
+		try {
+			assert.step("step 1");
+			yield pwait(CAF.delay(signal,ms));
+			assert.step("step 2");
+			yield "step 3";
+			assert.step("step 4");
+			yield pwait(CAF.delay(signal,ms));
+			assert.step("should not get here");
+		}
+		finally {
+			return "step 5";
+		}
+	}
+
+	var ac = new AbortController();
+	main = CAG(main);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"step 5",
+		"Aborted",
+	];
+
+	setTimeout(function waitToCancel(){
+		ac.abort();
+	},75);
+
+	try {
+		// var rActual;
+		for await (let msg of main(ac,50)) {
+			assert.step(msg);
+		}
+	}
+	catch (err) {
+		assert.step(err);
+	}
+
+	try {
+		main(ac,50).next();
+	}
+	catch (err) {
+		assert.step(err);
+	}
+
+	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: iterator return", async function test(assert){
+	function *main({ signal, pwait },ms) {
+		try {
+			assert.step("step 1");
+			yield pwait(CAF.delay(signal,ms));
+			assert.step("step 2");
+			yield "step 3";
+			assert.step("step 4");
+			yield pwait(CAF.delay(signal,ms));
+			assert.step("should not get here");
+		}
+		finally {
+			return "step 5";
+		}
+	}
+
+	var token = new CAF.cancelToken();
+	main = CAG(main);
+	var it = main(token,50);
+
+	var rExpected = [
+		"step 1",
+		"step 2",
+		"step 3",
+		"step 4",
+		"step 5",
+		"already complete",
+	];
+
+	setTimeout(async function waitToCancel(){
+		var ret = await it.return("returned");
+		assert.step(ret.value);
+	},75);
+
+	try {
+		// var rActual;
+		for await (let msg of it) {
+			assert.step(msg);
+		}
+	}
+	catch (err) {
+		assert.step(String(err));
+	}
+
+	var ret = await it.return("already complete");
+	assert.step(ret.value);
+
+	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
+	assert.verifySteps( rExpected, "iteration steps" );
 } );
 
 function _hasProp(obj,prop) {

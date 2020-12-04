@@ -1,0 +1,10 @@
+{
+	"recursive": true,
+	"from": "src",
+	"to": "dist",
+	".mjs": true,
+	"generateIndex": true,
+	"skip": [
+		"**/copyright-header.txt"
+	]
+}

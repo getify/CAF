@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 
+"use strict";
+
 var fs = require("fs"),
 	path = require("path"),
+	util = require("util"),
+	{ execFile } = require("child_process"),
+
 	terser = require("terser"),
-	{ build: buildModule, } = require("moduloze"),
+	execFileAsync = util.promisify(execFile),
 	packageJSON,
 	knownDeps,
 	copyrightHeader,
@@ -17,9 +22,6 @@ var fs = require("fs"),
 
 	POLYFILL_SRC = path.join(ROOT_DIR,"node_modules","abortcontroller-polyfill","dist","abortcontroller-polyfill-only.js"),
 	POLYFILL_DIST = path.join(DIST_DIR,"abortcontroller-polyfill-only.js"),
-	CORE_SRC = path.join(SRC_DIR,"caf.js"),
-	CORE_UMD_DIST = path.join(DIST_DIR,"caf.js"),
-	CORE_ESM_DIST = path.join(DIST_DIR,"caf.mjs"),
 
 	result
 ;
@@ -77,62 +79,16 @@ console.log("*** Building CAF ***");
 		copyrightHeader = copyrightHeader.replace(/#VERSION#/g,version).replace(/#YEAR#/g,year);
 
 		// now, convert and compress the core lib (UMD and ESM)
-		console.log(`Building: ${CORE_UMD_DIST}`);
+		console.log(`Building: core`);
 
-		result = `${fs.readFileSync(CORE_SRC,{ encoding: "utf8", })}`;
-
-		builds = buildModule(
-			{
-				buildUMD: true,
-				buildESM: true,
-			},
-			path.basename(CORE_SRC),
-			result,
-			knownDeps
+		// run moduloze CLI on the src/ tree
+		await execFileAsync(
+			path.join(ROOT_DIR,"node_modules",".bin","mz"),
+			[
+				`--prepend=${ copyrightHeader }`,
+				"-ruben",
+			]
 		);
-
-		result = await terser.minify(builds.umd.code,{
-			mangle: {
-				keep_fnames: true,
-			},
-			compress: {
-				keep_fnames: true,
-			},
-			output: {
-				comments: /^!/,
-			},
-		});
-		if (!(result && result.code)) {
-			if (result.error) throw result.error;
-			else throw result;
-		}
-		// append copyright-header text
-		result = `${copyrightHeader.replace(/#FILENAME#/g,path.basename(CORE_UMD_DIST))}${result.code}`;
-		// write dist
-		fs.writeFileSync(CORE_UMD_DIST,result,{ encoding: "utf8", });
-
-		// now, convert and compress the core lib (UMD and ESM)
-		console.log(`Building: ${CORE_ESM_DIST}`);
-
-		result = await terser.minify(builds.esm.code,{
-			mangle: {
-				keep_fnames: true,
-			},
-			compress: {
-				keep_fnames: true,
-			},
-			output: {
-				comments: /^!/,
-			},
-		});
-		if (!(result && result.code)) {
-			if (result.error) throw result.error;
-			else throw result;
-		}
-		// append copyright-header text
-		result = `${copyrightHeader.replace(/#FILENAME#/g,path.basename(CORE_ESM_DIST))}${result.code}`;
-		// write dist
-		fs.writeFileSync(CORE_ESM_DIST,result,{ encoding: "utf8", });
 
 
 		// *******************************

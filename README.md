@@ -6,9 +6,11 @@
 
 **CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancellation via tokens. In this way, you can express flows of synchronous-looking asynchronous logic that are still cancelable (**C**ancelable **A**sync **F**lows).
 
+Also included is `CAG(..)`, for alternately wrapping `function*` generators to emulate ES2018 async-generators (`async function *`).
+
 ## Environment Support
 
-This utility uses ES6 (aka ES2015) features. If you need to support environments prior to ES6, transpile it first (with Babel, etc).
+This library uses ES2018 features. If you need to support environments prior to ES2018, transpile it first (with Babel, etc).
 
 ## At A Glance
 
@@ -69,6 +71,56 @@ In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and wai
 
 **Note:** The cancellation token has no effect on the actual `ajax(..)` call itself here, since that utility ostensibly doesn't provide cancellation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancellation Signal Handling](#manual-cancellation-signal-handling) below for addressing this limitation.
 
+### CAG: Cancelable Async ~~Flows~~ *Generators*
+
+ES2018 added "async generators", which is a pairing of `async function` and `function*` -- so you can use `await` and `yield` in the same function, `await` for unwrapping a promise, and `yield` for pushing a value out. An async-generator (`async function * f(..) { .. }`), like regular iterators, is designed to be sequentially iterated, but using the "async iteration" protocol.
+
+For example, in ES2018:
+
+```js
+async function *stuff(urls) {
+    for (let url of urls) {
+        let resp = await fetch(url);  // await a promise
+        yield resp.json();  // yield a value (even a promise for a value)
+    }
+}
+
+// async-iteration loop
+for await (let v of stuff(assetURLs)) {
+    console.log(v);
+}
+```
+
+In the same way that `CAF(..)` emulates an `async..await` function with a `function*` generator, the `CAG(..)` utility emulates an async-generator with a normal `function*` generator. You can cancel an async-iteration early (even if it's currently waiting internally on a promise) with a cancellation token.
+
+You can also synchronously force-close an async-iterator by calling the `return(..)` on the iterator. With native async-iterators, `return(..)` is not actually synchronous, but `CAG(..)` patches this to allow synchronous closing.
+
+Instead of `yield`ing a promise the way you do with `CAF(..)`, you use a provided `pwait(..)` function with `yield`, like `yield pwait(somePromise)`. This allows a `yield ..value..` expression for pushing out a value through the iterator, as opposed to `yield pwait(..value..)` to locally wait for the promise to resolve. To emulate a `yield await ..value..` expression (common in async-generators), you use two `yield`s together: `yield yield pwait(..value..)`.
+
+For example:
+
+```js
+// NOTE: this is CAG(..), not to be confused with CAF(..)
+var stuff = CAG(function *stuff({ signal, pwait },urls){
+    for (let url of urls) {
+        let resp = yield pwait(fetch(url,{ signal }));  // await a promise
+        yield resp.json();  // yield a value (even a promise for a value)
+    }
+});
+
+var timeout = CAF.timeout(5000,"That's enough results!");
+var it = stuff(timeout,assetURLs);
+
+cancelBtn.addEventListener("click",() => it.return("Stop!"),false);
+
+// async-iteration loop
+for await (let v of it) {
+    console.log(v);
+}
+```
+
+In this snippet, the `stuff(..)` async-iteration can either be canceled if the 5-second timeout expires before iteration is complete, or the click of the cancel button can force-close the iterator early. The difference between them is that token cancellation would result in an exception bubbling out (to the consuming loop), whereas calling `return(..)` will simply cleanly close the iterator (and halt the loop) with no exception.
+
 ## Background/Motivation
 
 Generally speaking, an `async function` and a `function*` generator (driven with a [generator-runner](https://github.com/getify/You-Dont-Know-JS/blob/1st-ed/async%20%26%20performance/ch4.md#promise-aware-generator-runner)) look very similar. For that reason, most people just prefer the `async function` form since it's a little nicer syntax and doesn't require a library for the runner.
@@ -82,6 +134,8 @@ One unfortunate limitation is that an `async function` cannot be externally canc
 **CAF** provides a useful compromise: a `function*` generator that can be called like a normal `async function`, but which supports a cancellation token.
 
 The `CAF(..)` utility wraps a `function*` generator with a normal promise-returing function, just as if it was an `async function`. Other than minor syntactic aesthetics, the major observable difference is that a **CAF**-wrapped function must be provided a cancellation token's `signal` as its first argument, with any other arguments passed subsequent, as desired.
+
+By contrast, the `CAG(..)` utility wraps a `function*` generator as an ES2018 async-generator (`async function *`) that respects the native async-iteration protocol. Instead of `await`, you use `yield pwait(..)` in these emulated async-generators.
 
 ## Overview
 
@@ -510,6 +564,91 @@ The above snippet illustrates this problem with `signal.pr.catch(..)`, but any o
 
 The safe and proper approach is to always create a new cancellation token for each chain of **CAF**-wrapped function calls. For good measure, always unset any references to a token once it's no longer needed, and make sure to call [`discard()`](#memory-cleanup-with-discard); thus, you won't accidentally reuse the token, and the JS engine can properly GC (garbage collect) it.
 
+## CAG: Emulating Async Generators
+
+Where `CAF(..)` emulates a promise-returning `async function` using a generator, `CAG(..)` is provided to emulate an async-iterator returning async-generator (`async function*`).
+
+Async iteration is similar to streams (or primitive observables), where the values are consumed asynchronously (typically using an ES2018 `for await (..)` loop):
+
+```js
+for await (let v of someAsyncGenerator()) {
+    // ..
+}
+
+// or:
+var it = someAsyncGenerator();
+for await (let v of it) {
+    // ..
+}
+```
+
+For all the same reasons that `async function`s being non-cancelable is troublesome, async-generators are similarly susceptible. An async-generator can be "stuck" `await`ing internally on a promise, and the outer consuming code cannot do anything to force it to stop.
+
+That's why `CAG(..)` is useful:
+
+```js
+// instead of:
+async function *stuff(urls) {
+    for (let url of urls) {
+        let resp = await fetch(url);  // await a promise
+        yield resp.json();  // yield a value (even a promise for a value)
+    }
+}
+
+// do this:
+var stuff = CAG(function *stuff({ signal, pwait },urls){
+    for (let url of urls) {
+        let resp = yield pwait(fetch(url,{ signal }));  // await a promise
+        yield resp.json();  // yield a value (even a promise for a value)
+    }
+});
+```
+
+Like `CAF(..)`, functions wrapped by `CAG(..)` expect to receive a special value in their first parameter position. Here, the object is destructured to reveal it contains both the cancellation-token `signal` (as with `CAF(..)`) and the `pwait(..)` function, which enables emulating local `await ..promise..` expressions as `yield pwait(..promise..)`.
+
+The return from a `CAG(..)` wrapped function is an async-iterator (exactly as if a real native async-generator had been invoked). As with `CAF(..)` values, the first argument passed should always be the mandatory cancellation token (or its signal):
+
+```js
+var stuff = CAG(function *stuff(..){ .. });
+
+var timeout = CAF.timeout(5000,"Took too long.");
+var it = stuff(timeout);
+```
+
+The returned async-iterator (`it` above) can be iterated manually with `it.next(..)` calls -- each returns a promise for an iterator-result -- or more preferably with an ES2018 `for await (..)` loop:
+
+```js
+var timeout = CAF.timeout(5000,"Took too long.");
+var it = stuff(timeout);
+
+var { value, done } = await it.next();
+// ..do that repeatedly..
+
+// or preferably:
+for await (let value of it) {
+    // ..
+}
+```
+
+In addition to being able to `abort(..)` the cancellation token passed into a `CAG(..)`-wrapped generator, async-iterators also can be closed forcibly by calling their `return(..)` method.
+
+```js
+var timeout = CAF.timeout(5000,"Took too long.");
+var it = stuff(timeout);
+
+// later (e.g. in a timer or event handler):
+it.return("all done");
+// Promise<{ value: "all done", done: true }>
+```
+
+Typically, the `return(..)` call on an async-iterator (from an async-generator) will have "wait" for the attached async-generator to be "ready" to be closed -- in case an `await promise` expression is currently pending. This means you cannot actually synchronously force-close them. But since `CAG(..)` emulates async-generators with regular sync-generators, this nuance is "fixed". For consistency, `return(..)` still returns a Promise, but it's an already-resolved promise with the associated iterator-result.
+
+`CAG(..)`-wrapped functions also follow these behaviors of `CAF(..)`-wrapped functions:
+
+* Aborting the cancellation token results in an exception (which can be trapped by `try..catch`) propagating out from the most recent `for await (..)` (or `it.next(..)`) consumption point.
+
+* The `reason` provided when aborting a cancellation token is (by default) set as the exception that propagates out. This can be overriden by a `return ..` statement in a `finally` clause of the wrapped generator function.
+
 ## npm Package
 
 To install this package from `npm`:
@@ -522,12 +661,17 @@ And to require it in a node script:
 
 ```js
 var CAF = require("caf");
+var CAG = require("caf/cag");
 ```
 
-As of version 10.0.0, the package is also available as an ES Module, and can be imported as so:
+As of version 11.0.0, the package is also available as an ES Module, and can be imported as so:
 
 ```js
-import CAF from "caf/esm";
+import { CAF, CAG } from "caf/esm";
+
+// or:
+import CAF from "caf/esm/caf";
+import CAG from "caf/esm/cag";
 ```
 
 ## Builds
