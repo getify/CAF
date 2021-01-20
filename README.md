@@ -743,4 +743,4 @@ Then open up `coverage/lcov-report/index.html` in a browser to view the report.
 
 ## License
 
-All code and documentation are (c) 2019-2020 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
+All code and documentation are (c) 2021 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
