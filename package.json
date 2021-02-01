@@ -1,6 +1,6 @@
 {
 	"name": "caf",
-	"version": "11.0.1",
+	"version": "12.0.0",
 	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./index.js",
 	"browser": "./src/caf.js",
@@ -31,8 +31,18 @@
 		"shared.js": "CAFShared"
 	},
 	"exports": {
-		".": "./src/caf.js",
-		"./cag": "./src/cag.js",
+		".": {
+			"import": "./dist/esm/index.mjs",
+			"default": "./src/caf.js"
+		},
+		"./caf": {
+			"import": "./dist/esm/caf.mjs",
+			"default": "./src/caf.js"
+		},
+		"./cag": {
+			"import": "./dist/esm/cag.mjs",
+			"default": "./src/cag.js"
+		},
 		"./esm": "./dist/esm/index.mjs",
 		"./esm/caf": "./dist/esm/caf.mjs",
 		"./esm/cag": "./dist/esm/cag.mjs"

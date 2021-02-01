@@ -664,15 +664,18 @@ var CAF = require("caf");
 var CAG = require("caf/cag");
 ```
 
-As of version 11.0.0, the package is also available as an ES Module, and can be imported as so:
+As of version 12.0.0, the package is also available as an ES Module, and can be imported as so:
 
 ```js
-import { CAF, CAG } from "caf/esm";
+import { CAF, CAG } from "caf";
 
 // or:
-import CAF from "caf/esm/caf";
-import CAG from "caf/esm/cag";
+import CAF from "caf/caf";
+import CAG from "caf/cag";
 ```
+
+**Note:** Starting in version 11.x, **CAF** was also available in ESM format, but required an ESM import specifier segment `/esm` in **CAF** `import` paths. This has been deprecated as of version 12.0.0 (and will eventually be removed), in favor of unified import specifier paths via [Node Conditional Exports](https://nodejs.org/api/packages.html#packages_conditional_exports). For ESM `import` statements, always use the specifier style `"caf"` or `"caf/cag"`, instead of `"caf/esm"` and `"caf/esm/cag"`, respectively.
+
 
 ## Builds
 
