@@ -1,5 +1,9 @@
 "use strict";
 
+const path = require('path');
+
+require(path.resolve(__dirname,'../dist/abortcontroller-polyfill-only.js'));
+
 const CLEANUP_FN = Symbol("Cleanup Function");
 const TIMEOUT_TOKEN = Symbol("Timeout Token");
 
