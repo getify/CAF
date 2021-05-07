@@ -1,6 +1,6 @@
 {
 	"name": "caf",
-	"version": "12.0.1",
+	"version": "13.0.0",
 	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./index.js",
 	"browser": "./src/caf.js",
@@ -22,8 +22,8 @@
 		"coveralls": "~3.1.0",
 		"moduloze": "~0.7.0",
 		"nyc": "~15.1.0",
-		"qunit": "~2.14.0",
-		"terser": "~5.5.1"
+		"qunit": "~2.15.0",
+		"terser": "~5.7.0"
 	},
 	"mz-dependencies": {
 		"caf.js": "CAF",
@@ -33,7 +33,7 @@
 	"exports": {
 		".": {
 			"import": "./dist/esm/index.mjs",
-			"default": "./src/caf.js"
+			"default": "./index.js"
 		},
 		"./caf": {
 			"import": "./dist/esm/caf.mjs",

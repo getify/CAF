@@ -416,11 +416,29 @@ token.abort();
 
 #### `AbortController()` Polyfill
 
-If `AbortController` is not defined in the environment, use this [polyfill](https://github.com/mo/abortcontroller-polyfill) to define a compatible stand-in. The polyfill can be found in the `dist/` directory alongside `caf.js`.
+If `AbortController` is not defined in the environment, use this [polyfill](https://github.com/mo/abortcontroller-polyfill) to define a compatible stand-in. The polyfill is included in the `dist/` directory.
 
-**Note:** The polyfill is automatically loaded (in the `global` namespace) when **CAF** is used is Node.
+If you load **CAF** in Node using its CJS format (with `require(..)`) and use the main package entry point (`require("caf")`), the polyfill is automatically loaded (in the `global` namespace). If you don't use this entry point, but instead load something more directly, like `require("caf/caf")` or `require("caf/cag")`, then you need to manually load the polyfill first:
 
-Just be aware that if an environment needs the polyfill, `fetch(..)` and other such APIs won't know about `AbortController` so they won't recognize or respond to it. They won't break in its presence; they'll just ignore it.
+```js
+require("/path/to/caf/dist/abortcontroller-polyfill-only.js");
+
+var CAF = require("caf/caf");
+var CAG = require("caf/cag");
+```
+
+When using the ESM format of **CAF** in Node, the polyfill is *not* loaded automatically. Node 15/16+ includes `AbortController` natively, but in prior versions of Node while using the ESM format, you need to manually `require(..)` the polyfill (before `import`ing **CAF**) like this:
+
+```js
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+require("/path/to/caf/dist/abortcontroller-polyfill-only.js");
+
+import CAF from "caf";
+// ..
+```
+
+Be aware that if any environment needs this polyfill, utilities in that environment like `fetch(..)` won't *know* about `AbortController` so they won't recognize or respond to it. They won't break in its presence, just not use it.
 
 ### Manual Cancellation Signal Handling
 
@@ -664,6 +682,8 @@ var CAF = require("caf");
 var CAG = require("caf/cag");
 ```
 
+**CAF** relies on a
+
 As of version 12.0.0, the package is also available as an ES Module, and can be imported as so:
 
 ```js
@@ -676,17 +696,16 @@ import CAG from "caf/cag";
 
 **Note:** Starting in version 11.x, **CAF** was also available in ESM format, but required an ESM import specifier segment `/esm` in **CAF** `import` paths. This has been deprecated as of version 12.0.0 (and will eventually be removed), in favor of unified import specifier paths via [Node Conditional Exports](https://nodejs.org/api/packages.html#packages_conditional_exports). For ESM `import` statements, always use the specifier style `"caf"` or `"caf/cag"`, instead of `"caf/esm"` and `"caf/esm/cag"`, respectively.
 
-
 ## Builds
 
 [![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
 [![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
 
-The distribution library file (`dist/caf.js`) comes pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
+The distribution files come pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
 
 However, if you download this repository via Git:
 
-1. The included build utility (`scripts/build-core.js`) builds (and minifies) `dist/caf.js` from source.
+1. The included build utility (`scripts/build-core.js`) builds (and minifies) the `dist/*` files.
 
 2. To install the build and test dependencies, run `npm install` from the project root directory.
 
@@ -718,7 +737,7 @@ A test suite is included in this repository, as well as the npm package distribu
 
     Other npm test scripts:
 
-    * `npm run test:dist` will run the test suite against `dist/caf.js` instead of the default of `src/caf.js`.
+    * `npm run test:dist` will run the test suite against the `dist/*` files instead of the `src/*` files.
 
     * `npm run test:package` will run the test suite as if the package had just been installed via npm. This ensures `package.json`:`main` properly references the correct file for inclusion.
 
