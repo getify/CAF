@@ -100,14 +100,14 @@ function prettyPrint(v) {
 function printEnvNotification() {
 	console.log("");
 	console.log("**********************************");
-	if (/\.mjs$/.test(process.argv[1])) {
-		console.log("******** TESTING DIST/ESM ********");
+	if (process.env.TEST_PACKAGE) {
+		console.log("******** TESTING PACKAGE *********");
 	}
 	else if (process.env.TEST_UMD) {
 		console.log("******** TESTING DIST/UMD ********");
 	}
-	else if (process.env.TEST_PACKAGE) {
-		console.log("******** TESTING PACKAGE *********");
+	else if (process.env.TEST_ESM) {
+		console.log("******** TESTING DIST/ESM ********");
 	}
 	else {
 		console.log("********** TESTING SRC ***********");

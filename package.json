@@ -8,7 +8,7 @@
 		"test": "node scripts/node-tests.js",
 		"test:package": "TEST_PACKAGE=true npm test",
 		"test:umd": "TEST_UMD=true npm test",
-		"test:esm": "node scripts/node-esm-tests.mjs",
+		"test:esm": "TEST_ESM=true npm test",
 		"test:all": "npm test && npm run test:package && npm run test:umd && npm run test:esm",
 		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text --exclude=**/abortcontroller-polyfill-only.js --exclude=**/tests --exclude=**/node-tests.js node scripts/node-tests.js",
 		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
