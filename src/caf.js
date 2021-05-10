@@ -18,6 +18,10 @@ module.exports = Object.assign(CAF,{
 	signalAll,
 });
 module.exports.cancelToken = cancelToken;
+module.exports.delay = delay;
+module.exports.timeout = timeout;
+module.exports.signalRace = signalRace;
+module.exports.signalAll = signalAll;
 
 
 // ***************************************

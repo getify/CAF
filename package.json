@@ -1,14 +1,15 @@
 {
 	"name": "caf",
-	"version": "13.0.0",
+	"version": "13.1.0",
 	"description": "Cancelable Async Flows: a wrapper to treat generators as cancelable async functions",
 	"main": "./index.js",
 	"browser": "./src/caf.js",
 	"scripts": {
 		"test": "node scripts/node-tests.js",
-		"test:dist": "TEST_DIST=true npm test",
 		"test:package": "TEST_PACKAGE=true npm test",
-		"test:all": "npm test && npm run test:dist && npm run test:package",
+		"test:umd": "TEST_UMD=true npm test",
+		"test:esm": "node scripts/node-esm-tests.mjs",
+		"test:all": "npm test && npm run test:package && npm run test:umd && npm run test:esm",
 		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text --exclude=**/abortcontroller-polyfill-only.js --exclude=**/tests --exclude=**/node-tests.js node scripts/node-tests.js",
 		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
 		"build-all": "node scripts/build-all.js",

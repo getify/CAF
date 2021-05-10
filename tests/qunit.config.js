@@ -64,17 +64,20 @@ function done(results){
 
 	if (results.failed > 0) {
 		console.log(`Failed (${results.failed}/${results.total})`);
-		printEnvNotification();
+		console.log("");
+		console.log("**********************************");
 		process.exit(1);
 	}
 	else if (results.passed > 0) {
 		console.log(`Passed (${results.passed}/${results.total})`);
-		printEnvNotification();
+		console.log("");
+		console.log("**********************************");
 		process.exit(0);
 	}
 	else {
 		console.log("No tests run!");
-		printEnvNotification();
+		console.log("");
+		console.log("**********************************");
 		process.exit(1);
 	}
 }
@@ -97,8 +100,11 @@ function prettyPrint(v) {
 function printEnvNotification() {
 	console.log("");
 	console.log("**********************************");
-	if (process.env.TEST_DIST) {
-		console.log("********** TESTING DIST **********");
+	if (/\.mjs$/.test(process.argv[1])) {
+		console.log("******** TESTING DIST/ESM ********");
+	}
+	else if (process.env.TEST_UMD) {
+		console.log("******** TESTING DIST/UMD ********");
 	}
 	else if (process.env.TEST_PACKAGE) {
 		console.log("******** TESTING PACKAGE *********");

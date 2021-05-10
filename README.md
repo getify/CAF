@@ -729,7 +729,7 @@ A test suite is included in this repository, as well as the npm package distribu
 
 2. You can run the tests in a browser by opening up `tests/index.html`.
 
-3. To run the test utility with npm:
+3. To run the test utility:
 
     ```
     npm test
@@ -737,17 +737,13 @@ A test suite is included in this repository, as well as the npm package distribu
 
     Other npm test scripts:
 
-    * `npm run test:dist` will run the test suite against the `dist/*` files instead of the `src/*` files.
+    * `npm run test:package` will run the test suite as if the package had just been installed via npm. This ensures `package.json`:`main` and `exports` entry points are properly configured.
 
-    * `npm run test:package` will run the test suite as if the package had just been installed via npm. This ensures `package.json`:`main` properly references the correct file for inclusion.
+    * `npm run test:umd` will run the test suite against the `dist/umd/*` files instead of the `src/*` files.
 
-    * `npm run test:all` will run all three modes of the test suite.
+    * `npm run test:esm` will run the test suite against the `dist/esm/*` files instead of the `src/*` files.
 
-4. To run the test utility directly without npm:
-
-    ```
-    node scripts/node-tests.js
-    ```
+    * `npm run test:all` will run all four modes of the test suite.
 
 ### Test Coverage
 
