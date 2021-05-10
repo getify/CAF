@@ -1,19 +1,26 @@
 sudo: false
 language: node_js
 node_js:
-  - 12
-  - 14
-  - 16
+	- 12
+	- 14
+	- 16
+
+jobs:
+	exclude:
+		- node_js: "12"
+			env: TEST_ESM=true
 
 git:
-  depth: 5
+	depth: 5
 
 cache:
-  directories:
-    - node_modules
+	directories:
+		- node_modules
 
 env:
-  - TEST_PACKAGE=true
+	- TEST_PACKAGE=true
+	- TEST_UMD=true
+	- TEST_ESM=true
 branches:
-  only:
-    - master
+	only:
+		- master
