@@ -71,6 +71,28 @@ In this snippet, `one(..)` calls and waits on `two(..)`, `two(..)` calls and wai
 
 **Note:** The cancellation token has no effect on the actual `ajax(..)` call itself here, since that utility ostensibly doesn't provide cancellation capability; the Ajax request itself would still run to its completion (or error or whatever). We've only canceled the `one(..)`, `two(..)`, and `three(..)` functions that were waiting to process its response. See [`AbortController(..)`](#abortcontroller) and [Manual Cancellation Signal Handling](#manual-cancellation-signal-handling) below for addressing this limitation.
 
+#### Introspecting CAF objects
+
+You can programatically introspect CAF-produced functions to understand they're CAF-wrapped generators.
+
+```js
+var namedFn = CAF(function *namedGenerator() {
+	yield 'foo';
+});
+var anonymousFn = CAF(function *() {
+	yield 'bar';
+});
+
+console.log(namedFn.isCAF);
+=> true
+console.log(namedFn.generatorName)
+=> "namedGenerator"
+console.log(namedFn.isCAF);
+=> true
+console.log(namedFn.generatorName)
+=> "anonymous"
+```
+
 ### CAG: Cancelable Async ~~Flows~~ *Generators*
 
 ES2018 added "async generators", which is a pairing of `async function` and `function*` -- so you can use `await` and `yield` in the same function, `await` for unwrapping a promise, and `yield` for pushing a value out. An async-generator (`async function * f(..) { .. }`), like regular iterators, is designed to be sequentially iterated, but using the "async iteration" protocol.
