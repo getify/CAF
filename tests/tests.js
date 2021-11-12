@@ -87,7 +87,7 @@ QUnit.test( "CAF() + raw AbortController", async function test(assert){
 		"true",
 		"true",
 		"caught 1",
-		"caught 2",
+		"caught 2"
 	];
 
 	// var rActual;
@@ -704,6 +704,9 @@ QUnit.test( "checking aborted reason exists + raw AbortController", async functi
 
 	setTimeout(function t(){
 		ac.abort();
+		// try to forcibly fire the event even after
+		// the token was already aborted
+		ac.signal.dispatchEvent(new Event("abort"));
 	},50);
 
 	// rActual;

@@ -85,16 +85,21 @@ function signalPromise(signal) {
 		return signal.pr;
 	}
 
+	// the rest of this is only used by signalRace/signalAll
+	// in cases where native AbortController signals are
+	// passed in, rather than signals vended by CAF
 	var doRej;
 	var pr = new Promise(function c(res,rej){
 		doRej = () => rej();
 		signal.addEventListener("abort",doRej,false);
 	});
 	pr[CLEANUP_FN] = function cleanup(){
+		/* istanbul ignore else */
 		if (signal) {
 			signal.removeEventListener("abort",doRej,false);
 			signal = null;
 		}
+		/* istanbul ignore else */
 		if (pr) {
 			pr = pr[CLEANUP_FN] = doRej = null;
 		}

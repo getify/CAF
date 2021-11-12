@@ -411,7 +411,7 @@ var ac = new AbortController();
 main( ac, "http://some.tld/other" )
 .catch( () => console.log("Stopped!") );   // "Stopped!"
 
-token.abort();
+ac.abort();
 ```
 
 #### `AbortController()` Polyfill
@@ -682,7 +682,7 @@ var CAF = require("caf");
 var CAG = require("caf/cag");
 ```
 
-**CAF** relies on a
+**CAF** relies on a [polyfill for `AbortController`](#abortcontroller-polyfill) if the environment does not already provide `AbortController`, which in some cases must be manually required/imported and in other cases is automatically handled. See the linked section for more details.
 
 As of version 12.0.0, the package is also available as an ES Module, and can be imported as so:
 

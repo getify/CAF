@@ -97,7 +97,6 @@ function delay(tokenOrSignal,ms) {
 		if (signal) {
 			signalPr.catch(function onAbort(reason){
 				if (intv) {
-					// console.log("reason",reason);
 					clearTimeout(intv);
 					rej(reason || `delay (${ms}) interrupted`);
 				}
@@ -136,37 +135,67 @@ function timeout(duration,message = "Timeout") {
 	}
 }
 
-function signalRace(signals) {
-	var token = new cancelToken();
-	var prs = signals.map(signalPromise);
-	var cleanups = prs.map(pr => pr[CLEANUP_FN]);
-	Promise.race(prs).catch(function c(v){
+function splitSignalPRs(signals) {
+	return signals.reduce(
+		function split(prsTuple,signal) {
+			var pr = signalPromise(signal);
+			prsTuple[0].push(pr);
+			if (!signal.pr) {
+				prsTuple[1].push(pr);
+			}
+			return prsTuple;
+		},
+		[ /*allPrs=*/[], /*barePrs=*/[] ]
+	);
+}
+
+function triggerAndCleanup(overallPR,token,barePRs) {
+	overallPR
+	.then(function t(v){
 		token.abort(v);
+		token = null;
 	})
 	.then(function t(){
-		for (let fn of cleanups) { fn(); }
-		cleanups = token = null;
+		for (let pr of barePRs) {
+			if (pr[CLEANUP_FN]) {
+				pr[CLEANUP_FN]();
+			}
+		}
+		barePRs = null;
 	});
+}
+
+function prCatch(pr) {
+	return pr.catch(v => v);
+}
+
+function signalRace(signals) {
+	var token = new cancelToken();
+	var [ allPRs, barePRs ] = splitSignalPRs(signals);
+
+	triggerAndCleanup(
+		prCatch(Promise.race(allPRs)),
+		token,
+		barePRs
+	);
+
 	return token.signal;
 }
 
 function signalAll(signals) {
 	var token = new cancelToken();
-	var prs = signals.map(signalPromise);
-	var cleanups = prs.map(pr => pr[CLEANUP_FN]);
-	Promise.all(
-		// avoid short-circuiting, wait for all to reject
-		prs.map(function m(pr){
-			return pr.catch(v => v);
-		})
-	)
-	.then(function t(v){
-		token.abort(v);
-	})
-	.then(function t(){
-		for (let fn of cleanups) { fn(); }
-		cleanups = token = null;
-	});
+	var [ allPRs, barePRs ] = splitSignalPRs(signals);
+
+	triggerAndCleanup(
+		Promise.all(
+			// avoid short-circuiting, wait for all promises
+			// to reject
+			allPRs.map(prCatch)
+		),
+		token,
+		barePRs
+	);
+
 	return token.signal;
 }
 
