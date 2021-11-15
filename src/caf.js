@@ -16,12 +16,14 @@ module.exports = Object.assign(CAF,{
 	timeout,
 	signalRace,
 	signalAll,
+	tokenCycle,
 });
 module.exports.cancelToken = cancelToken;
 module.exports.delay = delay;
 module.exports.timeout = timeout;
 module.exports.signalRace = signalRace;
 module.exports.signalAll = signalAll;
+module.exports.tokenCycle = tokenCycle;
 
 
 // ***************************************
@@ -197,6 +199,17 @@ function signalAll(signals) {
 	);
 
 	return token.signal;
+}
+
+function tokenCycle() {
+	var prevToken;
+	return function getNextToken(reason){
+		if (prevToken) {
+			prevToken.abort(reason);
+			prevToken.discard();
+		}
+		return (prevToken = new cancelToken());
+	};
 }
 
 // thanks to Benjamin Gruenbaum (@benjamingr on GitHub) for

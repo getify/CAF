@@ -582,6 +582,36 @@ The above snippet illustrates this problem with `signal.pr.catch(..)`, but any o
 
 The safe and proper approach is to always create a new cancellation token for each chain of **CAF**-wrapped function calls. For good measure, always unset any references to a token once it's no longer needed, and make sure to call [`discard()`](#memory-cleanup-with-discard); thus, you won't accidentally reuse the token, and the JS engine can properly GC (garbage collect) it.
 
+### Cycling Tokens
+
+A common use case in managing async operations is when a currently pending operation needs to be canceled only because it's being replaced by a subsequent operation.
+
+For example, imagine a button on a page that requests some remote data to display. If the user clicks the button again while a previous request is still pending, you can likely discard/cancel the previous request and start up a new fresh request in its place.
+
+In these sorts of cases, you may find yourself "cycling" through cancellation tokens, where you store a reference to the current token, then when a new one is needed, the former token is aborted (to cancel all its chained operations) and replaced with the new token instance. This sort of logic is not too complex, but it does require keeping the token around across async operations, which unfortunately pollutes an outer scope.
+
+This use case is common enough to warrant a standard helper shipped with this library to reduce the friction/impact of managing these cycles of tokens. **CAF** ships with `tokenCycle()` for this purpose:
+
+```js
+// create a token cycle
+var getReqToken = CAF.tokenCycle();
+
+btn.addEventListener("click",function onClick(){
+    // get a new cancellation token, and
+    // cancel the previous token (if any)
+    //
+    // note: this function optionally takes a
+    //   reason for aborting the previous token
+    var cancelToken = getReqToken();
+
+    requestUpdatedData(cancelToken,"my-data");
+});
+```
+
+The `tokenCycle()` function creates a separate instance of the token cycle manager, so you can create as many independent cycles as your app needs. It returns a function (named `getReqToken()` in the above snippet) which, when called, will produce a new token and cancel the previous token (if one is pending). This function also **optionally** takes a single argument to use as the *reason* passed in to abort the previous token.
+
+You can of course keep these tokens around and use them for other cancellation controls. But in that situation you likely don't need `tokenCycle()`. This helper is designed for the lightweight use case where you wouldn't otherwise need to keep the token other than to make sure the previous operation is canceled before being replaced with the new operation.
+
 ## CAG: Emulating Async Generators
 
 Where `CAF(..)` emulates a promise-returning `async function` using a generator, `CAG(..)` is provided to emulate an async-iterator returning async-generator (`async function*`).
@@ -666,6 +696,47 @@ Typically, the `return(..)` call on an async-iterator (from an async-generator) 
 * Aborting the cancellation token results in an exception (which can be trapped by `try..catch`) propagating out from the most recent `for await (..)` (or `it.next(..)`) consumption point.
 
 * The `reason` provided when aborting a cancellation token is (by default) set as the exception that propagates out. This can be overriden by a `return ..` statement in a `finally` clause of the wrapped generator function.
+
+#### Event Streams
+
+One of the most common use cases for async iterators (aka, streams) is to subscribe to an event source (DOM element events, Node.js event emitters, etc) and iterate the received events.
+
+**CAG** provides two helpers for event stream subscription: `onEvent(..)` and `onceEvent(..)`. As the name implies, `onEvent(..)` listens for all events, whereas `onceEvent(..)` will listen only for a single event to fire (and then close the stream and unsubscribe from the event emitter).
+
+`onEvent(..)` returns an ES2018 async iterator, but `onceEvent(..)` returns a promise that resolves (with the event value, if any) when the event fires.
+
+```js
+var cancel = new CAF.cancelToken();
+
+var DOMReady = CAG.onceEvent(cancel,document,"DOMContentLoaded",/*evtOpts=*/false);
+var clicks = CAG.onEvent(cancel,myBtn,"click",/*evtOpts=*/false);
+
+// wait for this one-time event to fire
+await DOMReady;
+
+for await (let click of clicks) {
+    console.log("Button clicked!");
+}
+```
+
+`onEvent(..)` event subscriptions are lazy, meaning that they don't actually attach to the emitter element until the first attempt to consume an event (via `for await..of` or a manual `next(..)` call on the async iterator). So, in the above snippet, the `clicks` event stream is not yet subscribed to any click events that happen until the `for await..of` loop starts (e.g., while waiting for the prior `DOMReady` event to fire).
+
+However, there may be cases where you want to force the event subscription to start early even before consuming its events. Use `start()` to do so:
+
+```js
+var cancel = new CAF.cancelToken();
+
+var clicks = CAG.onEvent(cancel,myBtn,"click",/*evtOpts=*/false);
+
+// force eager listening to events
+clicks.start();
+
+// .. consume the stream later ..
+```
+
+Event streams internally buffer received events that haven't yet been consumed. This buffer grows unbounded, so responsible memory management implies always consuming events from a stream that is subscribed and actively receving events.
+
+Once an event stream is closed (e.g., token cancellation, breaking out of a `for await..of` loop, manually calling `return(..)` on the async iterator), the underlying event is unsubscribed.
 
 ## npm Package
 

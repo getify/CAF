@@ -1,5 +1,10 @@
 "use strict";
 
+// load in Node only
+if (typeof EventEmitter3 == "undefined") {
+	global.EventEmitter3 = require("events");
+}
+
 QUnit.test( "API", function test(assert){
 	assert.expect( 6 );
 
@@ -765,6 +770,71 @@ QUnit.test( "discard()", async function test(assert){
 	assert.ok( pActual === undefined, "normal completion with no abort being thrown" );
 } );
 
+QUnit.test( "token cycle", async function test(assert){
+	function *main(signal,counter,ms) {
+		assert.step(`step 1: ${counter}`);
+		yield CAF.delay(signal,ms);
+		assert.step(`step 2: ${counter}`);
+		yield CAF.delay(signal,ms);
+		assert.step("should not reach here");
+	}
+
+	var getNextToken = CAF.tokenCycle();
+	main = CAF(main);
+
+	var rExpected = [
+		"step 1: 0",
+		"catch(0): re-requesting(1)",
+		"step 1: 1",
+		"catch(1): re-requesting(2)",
+		"step 1: 2",
+		"catch(2): re-requesting(3)",
+		"catch(3): already canceled",
+		"step 1: 4",
+		"step 2: 4",
+		"catch(4): please stop",
+	];
+
+	var token;
+	var waitPr;
+
+	for (let i = 0; i < 5; i++) {
+		token = getNextToken(/*reason=*/`re-requesting(${i})`);
+
+		// prematurely cancel this token before even using it
+		if (i == 3) {
+			token.abort("already canceled");
+		}
+
+		// give time for the cancellation to be fully
+		// processed
+		await CAF.delay(10);
+
+		waitPr = main(token,i,50)
+		.then(function t() {
+			assert.step("should not reach here either");
+		})
+		.catch(function c(err){
+			assert.step(`catch(${i}): ${err}`);
+		});
+
+		if (i < 4) {
+			await CAF.delay(30);
+		}
+		else {
+			await CAF.delay(75);
+			token.abort("please stop");
+		}
+	}
+
+	// make sure to wait for all of the test steps to
+	// complete...
+	await waitPr;
+
+	assert.expect( 11 ); // note: 1 assertions + 10 `step(..)` calls
+	assert.verifySteps( rExpected, "expected token cycle" );
+} );
+
 QUnit.test( "async-generator: loop iteration", async function test(assert){
 	function *main({ signal, pwait },ms) {
 		assert.step("step 1");
@@ -881,14 +951,9 @@ QUnit.test( "async-generator: iteration exception recovery", async function test
 		"step 6",
 	];
 
-	try {
-		// var rActual;
-		for await (let msg of main(token,10)) {
-			assert.step(msg);
-		}
-	}
-	catch (err) {
-		console.log("wtf",err);
+	// var rActual;
+	for await (let msg of main(token,10)) {
+		assert.step(msg);
 	}
 
 	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
@@ -936,7 +1001,7 @@ QUnit.test( "async-generator: token aborted iteration", async function test(asse
 		assert.step("step 1");
 		yield pwait(CAF.delay(signal,ms));
 		assert.step("step 2");
-		yield "step 3";
+		yield Promise.resolve("step 3");
 		assert.step("step 4");
 		yield pwait(CAF.delay(signal,ms));
 		assert.step("should not get here");
@@ -1081,6 +1146,308 @@ QUnit.test( "async-generator: iterator return", async function test(assert){
 
 	assert.expect( 7 ); // note: 1 assertions + 6 `step(..)` calls
 	assert.verifySteps( rExpected, "iteration steps" );
+} );
+
+QUnit.test( "async-generator: onEvent", async function test(assert){
+	var token = new CAF.cancelToken();
+	var token3 = new CAF.cancelToken();
+	var token4 = new CAF.cancelToken();
+
+	var events = new EventEmitter3();
+	var eventStream1 = CAG.onEvent(token,events,"msg1");
+	var eventStream2 = CAG.onEvent(token,events,"msg2");
+	var eventStream3 = CAG.onEvent(token3,events,"msg3");
+	var eventStream4 = CAG.onEvent(token4,events,"msg4");
+	var eventStream5 = CAG.onEvent(CAF.timeout(250),events,"msg5");
+
+	var rExpected = [
+		"counter(1): 2",
+		"counter(1): 3",
+		"counter(1): 4",
+		"counter(2): 0",
+		"counter(2): 1",
+		"counter(2): 2",
+		"counter(2): 3",
+		"counter(2): 4",
+		"counter(2): 5",
+		"counter(2): 6",
+		"counter(2): 7",
+		"eventStream(3) stopped: aborting(3)",
+		"eventStream(4) stopped: aborting(4)",
+		"counter(5): 8",
+		"counter(5): 9",
+		"counter(5): 10",
+		"counter(5): 11",
+		"eventStream(5) stopped: Timeout"
+	];
+
+	var counter = 0;
+	var intv = setInterval(function emits(){
+		events.emit("msg1",`counter(1): ${counter}`);
+		events.emit("msg2",`counter(2): ${counter}`);
+		events.emit("msg3",`counter(3): ${counter}`);
+		token3.abort("aborting(3)");
+		events.emit("msg4",`counter(4): ${counter}`);
+		if (counter > 5) {
+			token4.abort("aborting(4)");
+		}
+		events.emit("msg5",`counter(5): ${counter}`);
+
+		counter++;
+	},20);
+
+	// emit some events that should be ignored because
+	// the event streams are not yet listening
+	events.emit("msg1","ignored event(1)");
+	events.emit("msg2","ignored event(2)");
+	events.emit("msg3","ignored event(3)");
+	events.emit("msg4","ignored event(4)");
+
+	// force one stream to start listening right away
+	eventStream2.start();
+
+	// wait to start iterating the streams, to let
+	// some events build up in the buffer
+	await CAF.delay(50);
+
+	try {
+		for await (let e1 of eventStream1) {
+			// make sure the start() method doesn't mess
+			// up an already started stream
+			eventStream1.start();
+			assert.step(e1);
+			if (counter > 4) break;
+		}
+	}
+	catch (err) {
+		assert.step(`no throw(1): ${err}`);
+	}
+	try {
+		for await (let e2 of eventStream2) {
+			assert.step(e2);
+			if (counter > 7) eventStream2.return();
+		}
+	}
+	catch (err) {
+		assert.step(`no throw(2): ${err}`);
+	}
+	try {
+		for await (let e3 of eventStream3) {
+			assert.step("should not get here(3)");
+			break;
+		}
+	}
+	catch (err) {
+		assert.step(`eventStream(3) stopped: ${err}`);
+	}
+	try {
+		for await (let e4 of eventStream4) {
+			assert.step("should not get here(4)");
+			break;
+		}
+	}
+	catch (err) {
+		assert.step(`eventStream(4) stopped: ${err}`);
+	}
+	try {
+		for await (let e5 of eventStream5) {
+			assert.step(e5);
+			// this is just a fail-safe to prevent
+			// a run-away test
+			if (counter > 50) break;
+		}
+	}
+	catch (err) {
+		assert.step(`eventStream(5) stopped: ${err}`);
+	}
+
+	await CAF.delay(20);
+	clearInterval(intv);
+
+	assert.expect( 19 ); // note: 1 assertions + 18 `step(..)` calls
+	assert.verifySteps( rExpected, "events received" );
+} );
+
+QUnit.test( "async-generator: onEvent, manual iteration", async function test(assert){
+	var token = new CAF.cancelToken();
+
+	var events = new EventEmitter3();
+	var eventStream = CAG.onEvent(token,events,"msg");
+
+	var rExpected = [
+		"first messages sent",
+		"counter: 0",
+		"counter: 1",
+		"buffered messages received",
+		"last messages sent",
+		"counter: 2",
+		"counter: 3",
+		"counter: 4",
+		"counter: 5",
+	];
+
+	var prs = [];
+
+	// pre-request events from the stream
+	for (let i = 0; i < 4; i++) {
+		prs.push(eventStream.next());
+	}
+
+	await CAF.delay(20);
+
+	// push some messages into the stream
+	for (let i = 0; i < 2; i++) {
+		events.emit("msg",`counter: ${i}`);
+	}
+
+	assert.step("first messages sent");
+
+	setTimeout(function moreMessages(){
+		for (let i = 2; i < 6; i++) {
+			events.emit("msg",`counter: ${i}`);
+		}
+		assert.step("last messages sent");
+		setTimeout(function after(){
+			eventStream.return();
+		},0);
+	},20);
+
+	setTimeout(function after(){
+		assert.step("buffered messages received");
+	},0);
+
+	// consume messages from the stream
+	for (let pr of prs) {
+		let res = await pr;
+		if (!res.done) {
+			assert.step(res.value);
+		}
+		else break;
+	}
+	for await (let v of eventStream) {
+		assert.step(v);
+	}
+
+	assert.expect( 10 ); // note: 1 assertions + 9 step(..)` calls
+	assert.verifySteps( rExpected, "events received" );
+} );
+
+QUnit.test( "async-generator: onceEvent", async function test(assert){
+	var token = new CAF.cancelToken();
+	var token3 = new CAF.cancelToken();
+	var token4 = new CAF.cancelToken();
+
+	var events = new EventEmitter3();
+	var pr1 = CAG.onceEvent(token,events,"msg1");
+	var pr2 = CAG.onceEvent(token,events,"msg2");
+	var pr3 = CAG.onceEvent(token3,events,"msg3");
+	var pr4 = CAG.onceEvent(token4,events,"msg4");
+	var pr5 = CAG.onceEvent(CAF.timeout(10),events,"msg5");
+
+	var rExpected = [
+		"counter(1): 0",
+		"counter(2): 2",
+		"counter(3): 0",
+		"throws(4): aborting(4)",
+		"throws(5): Timeout",
+	];
+
+	var counter = 0;
+	var intv = setInterval(function emits(){
+		events.emit("msg1",`counter(1): ${counter}`);
+		if (counter > 1) {
+			events.emit("msg2",`counter(2): ${counter}`);
+		}
+		events.emit("msg3",`counter(3): ${counter}`);
+		if (counter > 0) {
+			token3.abort("aborting(3)");
+		}
+		events.emit("msg4",`counter(4): ${counter}`);
+		token4.abort("aborting(4)");
+		events.emit("msg5",`counter(5): ${counter}`);
+
+		counter++;
+	},20);
+
+	// wait to read the event promises, to let
+	// multiple events have a chance to fire
+	await CAF.delay(50);
+	var listeners1 = events.listeners("msg1");
+	var listeners3 = events.listeners("msg3");
+	var listeners4 = events.listeners("msg4");
+	var listeners5 = events.listeners("msg5");
+
+	try {
+		// wait for an event from pr1
+		let msg1 = await pr1;
+		assert.step(msg1);
+
+		// make sure event already unsubscribed
+		if (listeners1.length > 0) {
+			throw "event still subscribed";
+		}
+	}
+	catch (err) {
+		assert.step(`no throw(1): ${err}`);
+	}
+	try {
+		// wait for an event from pr2
+		let msg2 = await pr2;
+		assert.step(msg2);
+
+		// make sure event already unsubscribed
+		if (events.listeners("msg2").length > 0) {
+			throw "event still subscribed";
+		}
+	}
+	catch (err) {
+		assert.step(`no throw(2): ${err}`);
+	}
+	try {
+		// wait for an event from pr3
+		let msg3 = await pr3;
+		assert.step(msg3);
+
+		// make sure event already unsubscribed
+		if (listeners3.length > 0) {
+			throw "event still subscribed";
+		}
+	}
+	catch (err) {
+		assert.step(`no throw(3): ${err}`);
+	}
+	try {
+		// wait for an event from pr4
+		let msg4 = await pr4;
+		assert.step(`should not get here: ${msg4}`);
+
+		// make sure event already unsubscribed
+		if (listeners4.length > 0) {
+			assert.step("event still subscribed");
+		}
+	}
+	catch (err) {
+		assert.step(`throws(4): ${err}`);
+	}
+	try {
+		// wait for an event from pr5
+		let msg5 = await pr5;
+		assert.step(`should not get here: ${msg5}`);
+
+		// make sure event already unsubscribed
+		if (listeners5.length > 0) {
+			assert.step("event still subscribed");
+		}
+	}
+	catch (err) {
+		assert.step(`throws(5): ${err}`);
+	}
+
+	await CAF.delay(50);
+	clearInterval(intv);
+
+	assert.expect( 6 ); // note: 1 assertions + 5 `step(..)` calls
+	assert.verifySteps( rExpected, "events received" );
 } );
 
 function _hasProp(obj,prop) {

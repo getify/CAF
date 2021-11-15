@@ -1,15 +1,27 @@
 "use strict";
 
+var CAF = require("./caf.js");
 var {
 	TIMEOUT_TOKEN,
 
 	cancelToken,
 	signalPromise,
 	processTokenOrSignal,
+	deferred,
+	isFunction,
+	isPromise,
 } = require("./shared.js");
 
+// wrap the public API method
+onceEvent = CAF(onceEvent);
+
 // assign public API as CAG() function
-module.exports = CAG;
+module.exports = Object.assign(CAG,{
+	onEvent,
+	onceEvent,
+});
+module.exports.onEvent = onEvent;
+module.exports.onceEvent = onceEvent;
 
 
 // ***************************************
@@ -73,16 +85,87 @@ function CAG(generatorFn) {
 	};
 }
 
-function isPromise(pr) {
-	return (pr && typeof pr == "object" && typeof pr.then == "function");
+function onEvent(token,el,evtName,evtOpts = false) {
+	var started = false;
+	var prStack;
+	var resStack;
+	var ait = CAG(eventStream)(token,el,evtName,evtOpts);
+	ait.start = start;
+	return ait;
+
+
+	// *********************************
+
+	function start() {
+		if (!started) {
+			started = true;
+			prStack = [];
+			resStack = [];
+
+			/* istanbul ignore next: setup event listener */
+			if (isFunction(el.addEventListener)) {
+				el.addEventListener(evtName,handler,evtOpts);
+			}
+			else if (isFunction(el.addListener)) {
+				el.addListener(evtName,handler);
+			}
+			else if (isFunction(el.on)) {
+				el.on(evtName,handler);
+			}
+		}
+	}
+
+	function *eventStream({ pwait }){
+		if (!started) {
+			start();
+		}
+
+		try {
+			while (true) {
+				if (prStack.length == 0) {
+					let { pr, resolve } = deferred();
+					prStack.push(pr);
+					resStack.push(resolve);
+				}
+				yield (yield pwait(prStack.shift()));
+			}
+		}
+		finally {
+			/* istanbul ignore next: remove event listener */
+			if (isFunction(el.removeEventListener)) {
+				el.removeEventListener(evtName,handler,evtOpts);
+			}
+			else if (isFunction(el.removeListener)) {
+				el.removeListener(evtName,handler);
+			}
+			else if (isFunction(el.off)) {
+				el.off(evtName,handler);
+			}
+			prStack.length = resStack.length = 0;
+		}
+	}
+
+	function handler(evt) {
+		if (resStack.length > 0) {
+			let resolve = resStack.shift();
+			resolve(evt);
+		}
+		else {
+			let { pr, resolve, } = deferred();
+			prStack.push(pr);
+			resolve(evt);
+		}
+	}
 }
 
-function deferred() {
-	var resolve;
-	var pr = new Promise(function c(res){
-		resolve = res;
-	});
-	return { pr, resolve };
+function *onceEvent(signal,el,evtName,extra = false) {
+	try {
+		var evtStream = onEvent(signal,el,evtName,extra);
+		return (yield evtStream.next()).value;
+	}
+	finally {
+		evtStream.return();
+	}
 }
 
 function pwait(v) {
@@ -102,6 +185,8 @@ function runner(gen,complete,onComplete,signal,...args) {
 			reason,
 		};
 	});
+	// silence spurious uncaught rejection warnings
+	canceledPr.catch(() => {});
 
 	return {
 		it,

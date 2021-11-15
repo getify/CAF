@@ -70,12 +70,18 @@ module.exports = {
 	cancelToken,
 	signalPromise,
 	processTokenOrSignal,
+	deferred,
+	isFunction,
+	isPromise,
 };
 module.exports.CLEANUP_FN = CLEANUP_FN;
 module.exports.TIMEOUT_TOKEN = TIMEOUT_TOKEN;
 module.exports.cancelToken = cancelToken;
 module.exports.signalPromise = signalPromise;
 module.exports.processTokenOrSignal = processTokenOrSignal;
+module.exports.deferred = deferred;
+module.exports.isFunction = isFunction;
+module.exports.isPromise = isPromise;
 
 
 // ***************************************
@@ -120,4 +126,17 @@ function processTokenOrSignal(tokenOrSignal) {
 	var signalPr = signalPromise(signal);
 
 	return { tokenOrSignal, signal, signalPr, };
+}
+
+function deferred() {
+	var resolve, pr = new Promise(res => resolve = res);
+	return { pr, resolve };
+}
+
+function isFunction(v) {
+	return typeof v == "function";
+}
+
+function isPromise(pr) {
+	return (pr && typeof pr == "object" && typeof pr.then == "function");
 }
