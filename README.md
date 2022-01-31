@@ -3,6 +3,8 @@
 [![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
 [![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
 [![Coverage Status](https://coveralls.io/repos/github/getify/caf/badge.svg?branch=master)](https://coveralls.io/github/getify/caf?branch=master)
+[![Modules](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
+[![License](https://img.shields.io/badge/license-MIT-a1356a)](LICENSE.txt)
 
 **CAF** (/ˈkahf/) is a wrapper for `function*` generators that treats them like `async function`s, but with support for external cancellation via tokens. In this way, you can express flows of synchronous-looking asynchronous logic that are still cancelable (**C**ancelable **A**sync **F**lows).
 
@@ -740,6 +742,9 @@ Once an event stream is closed (e.g., token cancellation, breaking out of a `for
 
 ## npm Package
 
+[![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
+[![Modules](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
+
 To install this package from `npm`:
 
 ```
@@ -771,6 +776,7 @@ import CAG from "caf/cag";
 
 [![Build Status](https://travis-ci.org/getify/CAF.svg?branch=master)](https://travis-ci.org/getify/CAF)
 [![npm Module](https://badge.fury.io/js/caf.svg)](https://www.npmjs.org/package/caf)
+[![Modules](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
 
 The distribution files come pre-built with the npm package distribution, so you shouldn't need to rebuild it under normal circumstances.
 
@@ -831,5 +837,7 @@ Then open up `coverage/lcov-report/index.html` in a browser to view the report.
 **Note:** The npm script `coverage:report` is only intended for use by project maintainers. It sends coverage reports to [Coveralls](https://coveralls.io/).
 
 ## License
+
+[![License](https://img.shields.io/badge/license-MIT-a1356a)](LICENSE.txt)
 
 All code and documentation are (c) 2021 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
