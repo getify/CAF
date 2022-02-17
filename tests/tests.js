@@ -68,7 +68,7 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	// rActual;
 	var pActual = asyncFn.call(obj,token.signal,3,12);
 	var qActual = await pActual;
-	pActual = pActual.toString();
+	pActual = getString(pActual);
 
 	assert.expect( 9 ); // note: 4 assertions + 5 `step(..)` calls
 	assert.ok( _isFunction( asyncFn ), "asyncFn()" );
@@ -341,7 +341,7 @@ QUnit.test( "already aborted", async function test(assert){
 			assert.step("main: shouldn't get here");
 		}
 		catch (err) {
-			assert.step(err.toString());
+			assert.step(getString(err));
 		}
 		assert.step("main: 2");
 		return "end of main";
@@ -393,7 +393,7 @@ QUnit.test( "already aborted", async function test(assert){
 		await qActual;
 	}
 	catch (err) {
-		qActual = err.toString();
+		qActual = getString(err);
 	}
 	tActual = await tActual;
 
@@ -432,7 +432,7 @@ QUnit.test( "delay()", async function test(assert){
 			assert.step("third: shouldn't get here");
 		}
 		catch (err) {
-			assert.step(err.toString());
+			assert.step(getString(err));
 		}
 		assert.step("third: 3");
 		return "end of third";
@@ -462,10 +462,10 @@ QUnit.test( "delay()", async function test(assert){
 
 	// rActual;
 	var pActual = await Promise.all([
-			main(token,50),
-			secondary(token,40),
-			third(token,60),
-		]);
+		main(token,50),
+		secondary(token,40),
+		third(token,60),
+	]);
 
 	assert.expect( 11 ); // note: 1 assertions + 9 `step(..)` calls
 	assert.verifySteps( rExpected, "delays in expected order" );
@@ -520,14 +520,14 @@ QUnit.test( "timeout()", async function test(assert){
 		await pActual;
 	}
 	catch (err) {
-		pActual = err.toString();
+		pActual = getString(err);
 	}
 	qActual = await qActual;
 	try {
 		await tActual;
 	}
 	catch (err) {
-		tActual = err.toString();
+		tActual = getString(err);
 	}
 
 	assert.expect( 7 ); // note: 4 assertions + 3 `step(..)` calls
@@ -574,7 +574,7 @@ QUnit.test( "signalRace()", async function test(assert){
 		await pActual;
 	}
 	catch (err) {
-		pActual = err.toString();
+		pActual = getString(err);
 	}
 
 	assert.expect( 4 ); // note: 2 assertions + 2 `step(..)` calls
@@ -1464,4 +1464,13 @@ function _isObject(v) {
 
 function _isArray(v) {
 	return Array.isArray( v );
+}
+
+function getString(v) {
+	try {
+		return (v && _isFunction(v.toString)) ? v.toString() : String(v);
+	}
+	catch (err) {
+		return "";
+	}
 }

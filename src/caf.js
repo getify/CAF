@@ -3,10 +3,14 @@
 var {
 	CLEANUP_FN,
 	TIMEOUT_TOKEN,
+	UNSET,
 
 	cancelToken,
 	signalPromise,
 	processTokenOrSignal,
+	isFunction,
+	isNativeAbortException,
+	invokeAbort,
 } = require("./shared.js");
 
 // assign public API as CAF namespace
@@ -59,8 +63,12 @@ function CAF(generatorFn) {
 		) {
 			// cancel timeout-token upon instance completion/failure
 			// to prevent timer hook from holding process open
-			let doCancelTimer = function cancelTimer(){
-				tokenOrSignal.abort();
+			let doCancelTimer = function cancelTimer(v){
+				invokeAbort(tokenOrSignal,v);
+				/* istanbul ignore else */
+				if (isFunction(tokenOrSignal.discard)) {
+					tokenOrSignal.discard();
+				}
 				tokenOrSignal = doCancelTimer = null;
 			};
 			completion.then(doCancelTimer,doCancelTimer);
@@ -97,12 +105,21 @@ function delay(tokenOrSignal,ms) {
 
 	return new Promise(function c(res,rej){
 		if (signal) {
-			signalPr.catch(function onAbort(reason){
-				if (intv) {
+			signalPr.catch(function onAbort(){
+				if (rej && signal && intv) {
+					let reason = (
+						(
+							signal.aborted &&
+							("reason" in signal) &&
+							!isNativeAbortException(signal.reason)
+						) ?
+							signal.reason :
+							`delay (${ms}) interrupted`
+					);
 					clearTimeout(intv);
-					rej(reason || `delay (${ms}) interrupted`);
+					rej(reason);
+					res = rej = intv = signal = null;
 				}
-				res = rej = intv = signal = null;
 			});
 			signalPr = null;
 		}
@@ -117,7 +134,8 @@ function delay(tokenOrSignal,ms) {
 function timeout(duration,message = "Timeout") {
 	duration = Number(duration) || 0;
 	var timeoutToken = new cancelToken();
-	delay(timeoutToken.signal,duration).then(cleanup,cleanup);
+	delay(timeoutToken.signal,duration)
+		.then(() => cleanup(message),cleanup);
 
 	// branding
 	Object.defineProperty(timeoutToken,TIMEOUT_TOKEN,{
@@ -131,8 +149,10 @@ function timeout(duration,message = "Timeout") {
 
 
 	// *********************************
-	function cleanup() {
-		timeoutToken.abort(message);
+	function cleanup(...args) {
+		/* istanbul ignore next */
+		invokeAbort(timeoutToken,args.length > 0 ? args[0] : UNSET);
+		timeoutToken.discard();
 		timeoutToken = null;
 	}
 }
@@ -153,8 +173,9 @@ function splitSignalPRs(signals) {
 
 function triggerAndCleanup(overallPR,token,barePRs) {
 	overallPR
-	.then(function t(v){
-		token.abort(v);
+	.then(function t(reason){
+		invokeAbort(token,reason);
+		token.discard();
 		token = null;
 	})
 	.then(function t(){
@@ -203,9 +224,10 @@ function signalAll(signals) {
 
 function tokenCycle() {
 	var prevToken;
-	return function getNextToken(reason){
+	return function getNextToken(...args){
 		if (prevToken) {
-			prevToken.abort(reason);
+			/* istanbul ignore next */
+			invokeAbort(prevToken,args.length > 0 ? args[0] : UNSET);
 			prevToken.discard();
 		}
 		return (prevToken = new cancelToken());

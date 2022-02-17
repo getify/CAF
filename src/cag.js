@@ -10,6 +10,7 @@ var {
 	deferred,
 	isFunction,
 	isPromise,
+	isNativeAbortException,
 } = require("./shared.js");
 
 // wrap the public API method
@@ -38,7 +39,15 @@ function CAG(generatorFn) {
 
 		// already aborted?
 		if (signal.aborted) {
-			throw signal.reason || "Aborted";
+			let reason = (
+				(
+					("reason" in signal) &&
+					!isNativeAbortException(signal.reason)
+				) ?
+					signal.reason :
+					"Aborted"
+			);
+			throw reason;
 		}
 
 		var def = deferred();

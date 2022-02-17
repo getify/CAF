@@ -326,9 +326,9 @@ Whatever value is passed to `abort(..)`, if any, is normally set as the overall 
 
 #### `signal.aborted` and `signal.reason`
 
-Standard [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) instances have an `aborted` boolean property that's set to `true` once the signal is aborted. Once aborted, CAF also extends signals to also include a `reason` property with the value (if any) passed to the [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)'s `abort(..)` call.
+Standard [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) instances have an `aborted` boolean property that's set to `true` once the signal is aborted. Recently, `AbortSignal` was extended to include a `reason` property. Prior to that change,**CAF**was manually patching `signal` with a `reason` property, but now**CAF**respects the `reason` that's built-in to `AbortSignal` instances, if the environment supports it.
 
-**Note:** Passing a `reason` to an `abort(..)` call on a cancellation token is CAF-specific; calling `abort()` on a direct `AbortController` instance will ignore any passed-in value, though all the rest of the CAF cancellation mechanism still works. See the following [`AbortController`](#abortcontroller) section for more information.
+To set the `reason` for an abort-signal firing, pass a value to the [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)'s `abort(..)` call.
 
 By checking the `signal.aborted` flag in a `finally` clause, you can determine whether the function was canceled, and then additionally access the `signal.reason` to determine more specific context information about why the cancellation occurred. This allows you to perform different clean-up operations depending on cancellation or normal completion:
 
@@ -358,7 +358,7 @@ token.abort( "Stopped!" );
 
 ### Memory Cleanup With `discard()`
 
-A cancellation token from CAF includes a `discard()` method which can be called at any time to fully unset any internal state in the token to allow proper GC (garbage collection) of any attached resources.
+A cancellation token from**CAF**includes a `discard()` method that can be called at any time to fully unset any internal state in the token to allow proper GC (garbage collection) of any attached resources.
 
 When you are sure you're fully done with a cancellation token, it's a good idea to call `discard()` on it, and then unset the variable holding that reference:
 
@@ -420,27 +420,27 @@ ac.abort();
 
 If `AbortController` is not defined in the environment, use this [polyfill](https://github.com/mo/abortcontroller-polyfill) to define a compatible stand-in. The polyfill is included in the `dist/` directory.
 
-If you load **CAF** in Node using its CJS format (with `require(..)`) and use the main package entry point (`require("caf")`), the polyfill is automatically loaded (in the `global` namespace). If you don't use this entry point, but instead load something more directly, like `require("caf/caf")` or `require("caf/cag")`, then you need to manually load the polyfill first:
+If you load **CAF** in Node using its CJS format (with `require(..)`) and use the main package entry point (`require("caf")`), the polyfill is automatically loaded (in the `global` namespace). If you don't use this entry point, but instead load something more directly, like `require("caf/core")` or `require("caf/cag")`, then you need to manually load the polyfill first:
 
 ```js
 require("/path/to/caf/dist/abortcontroller-polyfill-only.js");
 
-var CAF = require("caf/caf");
+var CAF = require("caf/core");
 var CAG = require("caf/cag");
 ```
 
-When using the ESM format of **CAF** in Node, the polyfill is *not* loaded automatically. Node 15/16+ includes `AbortController` natively, but in prior versions of Node while using the ESM format, you need to manually `require(..)` the polyfill (before `import`ing **CAF**) like this:
+When using the ESM format of **CAF** in Node, the polyfill is *not* loaded automatically. Node 15/16+ includes `AbortController` natively, but in prior versions of Node (12-14) while using the ESM format, you need to manually `require(..)` the polyfill (before `import`ing **CAF**) like this:
 
 ```js
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 require("/path/to/caf/dist/abortcontroller-polyfill-only.js");
 
-import CAF from "caf";
+import CAF from "caf/core";
 // ..
 ```
 
-Be aware that if any environment needs this polyfill, utilities in that environment like `fetch(..)` won't *know* about `AbortController` so they won't recognize or respond to it. They won't break in its presence, just not use it.
+Be aware that if any environment needs this polyfill, utilities in that environment like `fetch(..)` won't *know* about `AbortController` so they won't recognize or respond to it. They won't break in its presence, just won't use it.
 
 ### Manual Cancellation Signal Handling
 
@@ -751,26 +751,29 @@ To install this package from `npm`:
 npm install caf
 ```
 
-And to require it in a node script:
+**IMPORTANT:** The **CAF** library relies on [`AbortController`](#abortcontroller) being [present in the JS environment](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). If the environment does not already define `AbortController` natively, **CAF** needs a [polyfill for `AbortController`](#abortcontroller-polyfill). In some cases, the polyfill is automatically loaded, and in other cases it must be manually required/imported. See the linked section for more details.
+
+As of version 12.0.0, the package is available as an ES Module (in addition to CJS/UMD), and can be imported as so:
+
+```js
+// named imports
+import { CAF, CAG } from "caf";
+
+// or, default imports:
+import CAF from "caf/core";
+import CAG from "caf/cag";
+```
+
+**Note:** Starting in version 15.0.0, the (somewhat confusing) ESM specifier `"caf/caf"` (which imports **only** `CAF` as a default-import) has been deprecated and will eventually be removed. Use `"caf/core"` to default-import only the `CAF` module, or use just `"caf"` for named imports (`{ CAF, CAG }`).
+
+**Also Note:** Starting in version 11.x, **CAF** was also available in ESM format, but required an ESM import specifier segment `/esm` in **CAF** `import` paths. As of version 15.0.0, this has been removed, in favor of unified import specifier paths via [Node Conditional Exports](https://nodejs.org/api/packages.html#packages_conditional_exports). For ESM `import` statements, always use the specifier style `"caf"` or `"caf/cag"`, instead of `"caf/esm"` and `"caf/esm/cag"`, respectively.
+
+To use **CAF** in Node via CJS format (with `require(..)`):
 
 ```js
 var CAF = require("caf");
 var CAG = require("caf/cag");
 ```
-
-**CAF** relies on a [polyfill for `AbortController`](#abortcontroller-polyfill) if the environment does not already provide `AbortController`, which in some cases must be manually required/imported and in other cases is automatically handled. See the linked section for more details.
-
-As of version 12.0.0, the package is also available as an ES Module, and can be imported as so:
-
-```js
-import { CAF, CAG } from "caf";
-
-// or:
-import CAF from "caf/caf";
-import CAG from "caf/cag";
-```
-
-**Note:** Starting in version 11.x, **CAF** was also available in ESM format, but required an ESM import specifier segment `/esm` in **CAF** `import` paths. This has been deprecated as of version 12.0.0 (and will eventually be removed), in favor of unified import specifier paths via [Node Conditional Exports](https://nodejs.org/api/packages.html#packages_conditional_exports). For ESM `import` statements, always use the specifier style `"caf"` or `"caf/cag"`, instead of `"caf/esm"` and `"caf/esm/cag"`, respectively.
 
 ## Builds
 
@@ -840,4 +843,4 @@ Then open up `coverage/lcov-report/index.html` in a browser to view the report.
 
 [![License](https://img.shields.io/badge/license-MIT-a1356a)](LICENSE.txt)
 
-All code and documentation are (c) 2021 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
+All code and documentation are (c) 2022 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
