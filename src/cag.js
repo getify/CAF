@@ -3,14 +3,15 @@
 var CAF = require("./caf.js");
 var {
 	TIMEOUT_TOKEN,
+	UNSET,
 
+	getSignalReason,
 	cancelToken,
 	signalPromise,
 	processTokenOrSignal,
 	deferred,
 	isFunction,
 	isPromise,
-	isNativeAbortException,
 } = require("./shared.js");
 
 // wrap the public API method
@@ -39,14 +40,8 @@ function CAG(generatorFn) {
 
 		// already aborted?
 		if (signal.aborted) {
-			let reason = (
-				(
-					("reason" in signal) &&
-					!isNativeAbortException(signal.reason)
-				) ?
-					signal.reason :
-					"Aborted"
-			);
+			let reason = getSignalReason(signal);
+			reason = reason !== UNSET ? reason : "Aborted";
 			throw reason;
 		}
 

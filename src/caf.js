@@ -5,11 +5,11 @@ var {
 	TIMEOUT_TOKEN,
 	UNSET,
 
+	getSignalReason,
 	cancelToken,
 	signalPromise,
 	processTokenOrSignal,
 	isFunction,
-	isNativeAbortException,
 	invokeAbort,
 } = require("./shared.js");
 
@@ -43,10 +43,17 @@ function CAF(generatorFn) {
 			return signalPr;
 		}
 		// listen for abort signal
-		var cancellation = signalPr.catch(function onCancellation(reason){
+		var cancellation = signalPr.catch(function onCancellation(r){
+			var reason = getSignalReason(signal);
+			reason = reason !== UNSET ? reason : r;
 			try {
 				var ret = it.return();
-				throw ((ret.value !== undefined) ? ret.value : reason);
+				/* istanbul ignore next */
+				throw (
+					(ret.value !== undefined) ? ret.value :
+					reason !== UNSET ? reason :
+					undefined
+				);
 			}
 			// clean up memory
 			finally {
@@ -78,7 +85,7 @@ function CAF(generatorFn) {
 			completion.catch(() => {});
 			tokenOrSignal = null;
 		}
-		signal = args = null; // clean up memory
+		args = null; // clean up memory
 		return completion;
 	};
 }
@@ -107,17 +114,9 @@ function delay(tokenOrSignal,ms) {
 		if (signal) {
 			signalPr.catch(function onAbort(){
 				if (rej && signal && intv) {
-					let reason = (
-						(
-							signal.aborted &&
-							("reason" in signal) &&
-							!isNativeAbortException(signal.reason)
-						) ?
-							signal.reason :
-							`delay (${ms}) interrupted`
-					);
+					let reason = getSignalReason(signal);
 					clearTimeout(intv);
-					rej(reason);
+					rej(reason !== UNSET ? reason : `delay (${ms}) interrupted`);
 					res = rej = intv = signal = null;
 				}
 			});

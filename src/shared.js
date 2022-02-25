@@ -4,28 +4,40 @@ const CLEANUP_FN = Symbol("Cleanup Function");
 const TIMEOUT_TOKEN = Symbol("Timeout Token");
 const REASON = Symbol("Signal Reason");
 const UNSET = Symbol("Unset");
+const [
+	SIGNAL_HAS_REASON_DEFINED,
+	MISSING_REASON_EXCEPTION,
+] = (function featureDetect(){
+	var testAC = new AbortController();
+	var hasSignalNativelyDefined = !!Object.getOwnPropertyDescriptor(
+		Object.getPrototypeOf(testAC.signal),
+		"reason"
+	);
+	try {
+		testAC.abort();
+	}
+	catch (err) {}
+	return [
+		hasSignalNativelyDefined,
+
+		// some versions of Node (~16.14) unfortunately define
+		// `signal.reason` natively but do NOT have it default
+		// to the DOMException if missing, so we need to detect
+		isNativeAbortException(testAC.signal.reason),
+	];
+})();
 
 class cancelToken {
 	constructor(controller = new AbortController()) {
 		this.controller = controller;
 		this.signal = controller.signal;
-		// `AbortSignal` only recently got `reason`
-		this.signalHasReasonDefined = !!Object.getOwnPropertyDescriptor(
-			Object.getPrototypeOf(this.signal),
-			"reason"
-		);
 		this.signal[REASON] = UNSET;
 		var cleanup;
 		// note: => arrow functions used here for lexical this
 		var initPromise = (res,rej) => {
 			var doRej = () => {
 				if (rej && this.signal) {
-					let reason = this._getSignalReason();
-					reason = (
-						(reason !== UNSET && !isNativeAbortException(reason)) ?
-							reason :
-							UNSET
-					);
+					let reason = getSignalReason(this.signal);
 
 					// make sure `reason` is tracked, especially
 					// for older `AbortSignal` where it's a CAF-only
@@ -59,7 +71,7 @@ class cancelToken {
 		this._trackSignalReason(reason);
 		if (this.controller) {
 			/* istanbul ignore next */
-			if (this.signalHasReasonDefined && reason !== UNSET) {
+			if (SIGNAL_HAS_REASON_DEFINED && reason !== UNSET) {
 				this.controller.abort(reason);
 			}
 			else {
@@ -78,9 +90,9 @@ class cancelToken {
 				}
 				this.signal.pr = null;
 			}
-			this.signal[REASON] = null;
-			/* istanbul ignore else */
-			if (!this.signalHasReasonDefined) {
+			delete this.signal[REASON];
+			/* istanbul ignore next */
+			if (!SIGNAL_HAS_REASON_DEFINED) {
 				this.signal.reason = null;
 			}
 			this.signal = null;
@@ -91,7 +103,8 @@ class cancelToken {
 		if (this.signal && reason !== UNSET) {
 			// for older `AbortSignal` where `reason`
 			// was a CAF-only extension
-			if (!this.signalHasReasonDefined && !("reason" in this.signal)) {
+			/* istanbul ignore next */
+			if (!SIGNAL_HAS_REASON_DEFINED && !("reason" in this.signal)) {
 				this.signal.reason = reason;
 			}
 			// keep internal `reason` tracking in sync
@@ -100,16 +113,6 @@ class cancelToken {
 			}
 		}
 	}
-	_getSignalReason() {
-		/* istanbul ignore next */
-		return (
-			(this.signal && this.signal.aborted) ? (
-				this.signalHasReasonDefined ? this.signal.reason :
-				this.signal[REASON]
-			) :
-			UNSET
-		);
-	}
 }
 
 module.exports = {
@@ -117,30 +120,44 @@ module.exports = {
 	TIMEOUT_TOKEN,
 	UNSET,
 
+	getSignalReason,
 	cancelToken,
 	signalPromise,
 	processTokenOrSignal,
 	deferred,
 	isFunction,
 	isPromise,
-	isNativeAbortException,
 	invokeAbort,
 };
 module.exports.CLEANUP_FN = CLEANUP_FN;
 module.exports.TIMEOUT_TOKEN = TIMEOUT_TOKEN;
 module.exports.UNSET = UNSET;
 
+module.exports.getSignalReason = getSignalReason;
 module.exports.cancelToken = cancelToken;
 module.exports.signalPromise = signalPromise;
 module.exports.processTokenOrSignal = processTokenOrSignal;
 module.exports.deferred = deferred;
 module.exports.isFunction = isFunction;
 module.exports.isPromise = isPromise;
-module.exports.isNativeAbortException = isNativeAbortException;
 module.exports.invokeAbort = invokeAbort;
 
 
 // ***************************************
+
+function getSignalReason(signal) {
+	/* istanbul ignore next */
+	return (
+		(signal && signal.aborted) ? (
+			(SIGNAL_HAS_REASON_DEFINED && MISSING_REASON_EXCEPTION) ? (
+				!isNativeAbortException(signal.reason) ? signal.reason : UNSET
+			) :
+			(REASON in signal) ? signal[REASON] :
+			UNSET
+		) :
+		UNSET
+	);
+}
 
 function signalPromise(signal) {
 	if (signal.pr) {
@@ -155,15 +172,7 @@ function signalPromise(signal) {
 		doRej = () => {
 			/* istanbul ignore next */
 			if (rej && signal) {
-				let reason = (
-					(
-						signal.aborted &&
-						("reason" in signal) &&
-						!isNativeAbortException(signal.reason)
-					) ?
-						signal.reason :
-						UNSET
-				);
+				let reason = getSignalReason(signal);
 				rej(reason !== UNSET ? reason : undefined);
 			}
 			rej = null;
