@@ -77,6 +77,21 @@ QUnit.test( "CAF() + this + parameters + return", async function test(assert){
 	assert.strictEqual( qActual, qExpected, "eventually returns 42" );
 } );
 
+QUnit.test( "CAF() + properties", async function test(assert){
+	var namedFn = CAF(function *namedGenerator() {
+		yield 'foo';
+	});
+	var anonymousFn = CAF(function *() {
+		yield 'bar';
+	});
+
+	assert.expect( 4 );
+	assert.strictEqual( namedFn.isCAF, true );
+	assert.strictEqual( namedFn.generatorName, "namedGenerator" );
+	assert.strictEqual( anonymousFn.isCAF, true );
+	assert.strictEqual( anonymousFn.generatorName, "anonymous" );
+} );
+
 QUnit.test( "CAF() + raw AbortController", async function test(assert){
 	function *main(signal,ms) {
 		assert.step(String(signal === ac.signal));
